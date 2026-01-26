@@ -1,6 +1,10 @@
 import hmac
+import os
+import secrets
 import sqlite3
+import smtplib
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from hashlib import sha256
 from uuid import uuid4
 
@@ -24,28 +28,37 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def create_user(db_path: str, username: str, password: str) -> dict:
+def create_user(db_path: str, username: str, password: str, email: str) -> dict:
     if not username:
         raise AuthError("Username cannot be empty")
+    if not email:
+        raise AuthError("Email cannot be empty")
+    if "@" not in email:
+        raise AuthError("Email must be valid")
     password_hash = hash_password(password)
     now = _now_iso()
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(
             """
-            INSERT INTO users (username, password_hash, created_at)
-            VALUES (?, ?, ?)
+            INSERT INTO users (username, email, password_hash, created_at)
+            VALUES (?, ?, ?, ?)
             """,
-            (username, password_hash, now),
+            (username, email, password_hash, now),
         )
         conn.commit()
         user = conn.execute(
-            "SELECT id, username, created_at FROM users WHERE username = ?",
+            "SELECT id, username, email, created_at FROM users WHERE username = ?",
             (username,),
         ).fetchone()
-        return {"id": user[0], "username": user[1], "created_at": user[2]}
+        return {
+            "id": user[0],
+            "username": user[1],
+            "email": user[2],
+            "created_at": user[3],
+        }
     except sqlite3.IntegrityError as exc:
-        raise AuthError("Username already exists") from exc
+        raise AuthError("Username or email already exists") from exc
     finally:
         conn.close()
 
@@ -54,7 +67,7 @@ def get_user_by_username(db_path: str, username: str) -> dict | None:
     conn = sqlite3.connect(db_path)
     try:
         row = conn.execute(
-            "SELECT id, username, password_hash, created_at FROM users WHERE username = ?",
+            "SELECT id, username, email, password_hash, created_at FROM users WHERE username = ?",
             (username,),
         ).fetchone()
         if not row:
@@ -62,9 +75,102 @@ def get_user_by_username(db_path: str, username: str) -> dict | None:
         return {
             "id": row[0],
             "username": row[1],
-            "password_hash": row[2],
-            "created_at": row[3],
+            "email": row[2],
+            "password_hash": row[3],
+            "created_at": row[4],
         }
+    finally:
+        conn.close()
+
+
+def get_user_by_email(db_path: str, email: str) -> dict | None:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT id, username, email, password_hash, created_at FROM users WHERE email = ?",
+            (email,),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "username": row[1],
+            "email": row[2],
+            "password_hash": row[3],
+            "created_at": row[4],
+        }
+    finally:
+        conn.close()
+
+
+def create_password_reset(db_path: str, user_id: int, ttl_seconds: int) -> str:
+    token = secrets.token_urlsafe(32)
+    token_hash = sha256(token.encode("utf-8")).hexdigest()
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=ttl_seconds)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO password_resets (user_id, token_hash, created_at, expires_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, token_hash, now.isoformat(), expires_at.isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return token
+
+
+def verify_password_reset(db_path: str, token: str) -> dict | None:
+    if not token:
+        return None
+    token_hash = sha256(token.encode("utf-8")).hexdigest()
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, user_id, expires_at, used_at
+            FROM password_resets
+            WHERE token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            return None
+        expires_at = datetime.fromisoformat(row[2])
+        if row[3] is not None:
+            return None
+        if expires_at < datetime.now(timezone.utc):
+            return None
+        return {"id": row[0], "user_id": row[1]}
+    finally:
+        conn.close()
+
+
+def mark_password_reset_used(db_path: str, reset_id: int) -> None:
+    now = _now_iso()
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE password_resets SET used_at = ? WHERE id = ?",
+            (now, reset_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_user_password(db_path: str, user_id: int, password: str) -> None:
+    password_hash = hash_password(password)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (password_hash, user_id),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -132,6 +238,36 @@ def verify_signed_session(token: str, secret: str) -> str | None:
     if not hmac.compare_digest(signature, expected.hexdigest()):
         return None
     return session_id
+
+
+def send_password_reset_email(recipient: str, reset_link: str) -> None:
+    host = os.environ.get("SMTP_HOST")
+    port = int(os.environ.get("SMTP_PORT", "587"))
+    username = os.environ.get("SMTP_USERNAME")
+    password = os.environ.get("SMTP_PASSWORD")
+    sender = os.environ.get("SMTP_FROM")
+    use_tls = os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
+
+    if not host or not sender:
+        print("Email not sent: SMTP settings missing.")
+        return
+
+    message = EmailMessage()
+    message["Subject"] = "Reset your password"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(
+        "Use the link below to reset your password:\n\n"
+        f"{reset_link}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+
+    with smtplib.SMTP(host, port) as server:
+        if use_tls:
+            server.starttls()
+        if username and password:
+            server.login(username, password)
+        server.send_message(message)
 
 
 def _now_iso() -> str:

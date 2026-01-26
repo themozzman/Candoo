@@ -11,11 +11,17 @@ from engine.auth import (
     AuthError,
     create_session,
     create_user,
+    create_password_reset,
     delete_session,
+    get_user_by_email,
     get_user_by_session,
     get_user_by_username,
+    mark_password_reset_used,
+    send_password_reset_email,
     sign_session,
+    update_user_password,
     verify_password,
+    verify_password_reset,
     verify_signed_session,
 )
 from engine.loader import FlowValidationError, load_flows
@@ -35,6 +41,8 @@ DB_PATH = os.environ.get("DATABASE_PATH", str(ROOT_DIR / "backend" / "storage" /
 REPORTS_PATH = os.environ.get("REPORTS_PATH", str(ROOT_DIR / "backend" / "reports"))
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "dev-secret")
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "86400"))
+RESET_TOKEN_TTL_SECONDS = int(os.environ.get("RESET_TOKEN_TTL_SECONDS", "3600"))
+RESET_LINK_BASE = os.environ.get("RESET_LINK_BASE", "http://localhost:5173")
 COOKIE_NAME = "session_token"
 CORS_ORIGINS = [
     origin.strip()
@@ -69,9 +77,24 @@ class SubmitRequest(BaseModel):
     skipped: bool = False
 
 
-class AuthRequest(BaseModel):
+class SignupRequest(BaseModel):
     username: str
     password: str
+    email: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 @app.on_event("startup")
@@ -194,10 +217,11 @@ def teacher_report(flow_id: str, user: dict = Depends(get_current_user)) -> dict
 
 
 @app.post("/auth/signup")
-def auth_signup(payload: AuthRequest, response: Response, request: Request) -> dict:
+def auth_signup(payload: SignupRequest, response: Response, request: Request) -> dict:
     _rate_limit(request, "signup")
     try:
-        user = create_user(DB_PATH, payload.username, payload.password)
+        email = payload.email.strip().lower()
+        user = create_user(DB_PATH, payload.username, payload.password, email)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
@@ -207,7 +231,7 @@ def auth_signup(payload: AuthRequest, response: Response, request: Request) -> d
 
 
 @app.post("/auth/login")
-def auth_login(payload: AuthRequest, response: Response, request: Request) -> dict:
+def auth_login(payload: LoginRequest, response: Response, request: Request) -> dict:
     _rate_limit(request, "login")
     user = get_user_by_username(DB_PATH, payload.username)
     if not user or not verify_password(payload.password, user["password_hash"]):
@@ -231,3 +255,26 @@ def auth_logout(response: Response, request: Request) -> dict:
 @app.get("/auth/me")
 def auth_me(user: dict = Depends(get_current_user)) -> dict:
     return {"username": user["username"]}
+
+
+@app.post("/auth/forgot")
+def auth_forgot_password(payload: ForgotPasswordRequest, request: Request) -> dict:
+    _rate_limit(request, "forgot")
+    email = payload.email.strip().lower()
+    user = get_user_by_email(DB_PATH, email)
+    if user:
+        token = create_password_reset(DB_PATH, user["id"], RESET_TOKEN_TTL_SECONDS)
+        reset_link = f"{RESET_LINK_BASE}?reset_token={token}"
+        send_password_reset_email(email, reset_link)
+    return {"success": True}
+
+
+@app.post("/auth/reset")
+def auth_reset_password(payload: ResetPasswordRequest, request: Request) -> dict:
+    _rate_limit(request, "reset")
+    reset = verify_password_reset(DB_PATH, payload.token)
+    if not reset:
+        raise HTTPException(status_code=400, detail="Reset token is invalid or expired")
+    update_user_password(DB_PATH, reset["user_id"], payload.new_password)
+    mark_password_reset_used(DB_PATH, reset["id"])
+    return {"success": True}

@@ -41,6 +41,7 @@ def init_db(db_path: str) -> None:
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT NOT NULL UNIQUE,
+                email TEXT UNIQUE,
                 password_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )
@@ -59,8 +60,33 @@ def init_db(db_path: str) -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id
             ON auth_sessions(user_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_password_resets_token_hash
+            ON password_resets(token_hash)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_password_resets_user_id
+            ON password_resets(user_id)
             """
         )
         conn.execute(
@@ -69,9 +95,22 @@ def init_db(db_path: str) -> None:
             ON attempts(flow_id, step_id)
             """
         )
+        _ensure_users_email_column(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "email" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
+        ON users(email)
+        """
+    )
 
 
 def log_attempt(

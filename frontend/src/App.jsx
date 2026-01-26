@@ -5,7 +5,9 @@ import {
   fetchReport,
   login,
   logout,
-  signup,
+  requestPasswordReset,
+  resetPassword,
+  signupWithEmail,
   startSession,
   submitAnswer
 } from "./api.js";
@@ -20,7 +22,11 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null);
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [sessionId, setSessionId] = useState(null);
   const [currentStep, setCurrentStep] = useState(null);
   const [activeFlow, setActiveFlow] = useState(null);
@@ -67,6 +73,15 @@ export default function App() {
       .catch(() => {
         setAuthUser(null);
       });
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("reset_token");
+    if (token) {
+      setResetToken(token);
+      setAuthMode("reset");
+    }
   }, []);
 
   const flowOptions = useMemo(
@@ -131,14 +146,16 @@ export default function App() {
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
     setError("");
+    setAuthMessage("");
     try {
       const data =
         authMode === "signup"
-          ? await signup(authUsername, authPassword)
+          ? await signupWithEmail(authUsername, authEmail, authPassword)
           : await login(authUsername, authPassword);
       setAuthUser(data);
       setStudentId(data.username);
       setAuthPassword("");
+      setAuthEmail("");
     } catch (err) {
       setError(err.message);
     }
@@ -146,6 +163,7 @@ export default function App() {
 
   const handleLogout = async () => {
     setError("");
+    setAuthMessage("");
     try {
       await logout();
     } catch (err) {
@@ -153,6 +171,33 @@ export default function App() {
     } finally {
       setAuthUser(null);
       resetSessionView();
+    }
+  };
+
+  const handleForgotSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setAuthMessage("");
+    try {
+      await requestPasswordReset(authEmail);
+      setAuthMessage("If the email exists, a reset link has been sent.");
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleResetSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setAuthMessage("");
+    try {
+      await resetPassword(resetToken, resetPasswordValue);
+      setAuthMessage("Password reset successful. Please log in.");
+      setAuthPassword("");
+      setResetPasswordValue("");
+      setAuthMode("login");
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -187,11 +232,25 @@ export default function App() {
       </header>
 
       {error && <div>Error: {error}</div>}
+      {authMessage && <div>{authMessage}</div>}
 
-      {!authUser && (
+      {!authUser && authMode !== "forgot" && authMode !== "reset" && (
         <section>
           <h2>{authMode === "signup" ? "Sign Up" : "Login"}</h2>
           <form onSubmit={handleAuthSubmit}>
+            {authMode === "signup" && (
+              <div>
+                <label>
+                  Email:
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(event) => setAuthEmail(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            )}
             <div>
               <label>
                 Username:
@@ -227,6 +286,60 @@ export default function App() {
               ? "Have an account? Login"
               : "Need an account? Sign up"}
           </button>
+          <button onClick={() => setAuthMode("forgot")}>Forgot password?</button>
+        </section>
+      )}
+
+      {!authUser && authMode === "forgot" && (
+        <section>
+          <h2>Reset Password</h2>
+          <form onSubmit={handleForgotSubmit}>
+            <div>
+              <label>
+                Email:
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <button type="submit">Send Reset Link</button>
+          </form>
+          <button onClick={() => setAuthMode("login")}>Back to login</button>
+        </section>
+      )}
+
+      {!authUser && authMode === "reset" && (
+        <section>
+          <h2>Set New Password</h2>
+          <form onSubmit={handleResetSubmit}>
+            <div>
+              <label>
+                Reset Token:
+                <input
+                  type="text"
+                  value={resetToken}
+                  onChange={(event) => setResetToken(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <div>
+              <label>
+                New Password:
+                <input
+                  type="password"
+                  value={resetPasswordValue}
+                  onChange={(event) => setResetPasswordValue(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <button type="submit">Update Password</button>
+          </form>
+          <button onClick={() => setAuthMode("login")}>Back to login</button>
         </section>
       )}
 
