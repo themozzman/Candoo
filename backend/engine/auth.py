@@ -262,12 +262,15 @@ def send_password_reset_email(recipient: str, reset_link: str) -> None:
         "If you did not request this, you can ignore this email."
     )
 
-    with smtplib.SMTP(host, port) as server:
-        if use_tls:
-            server.starttls()
-        if username and password:
-            server.login(username, password)
-        server.send_message(message)
+    try:
+        with smtplib.SMTP(host, port, timeout=10) as server:
+            if use_tls:
+                server.starttls()
+            if username and password:
+                server.login(username, password)
+            server.send_message(message)
+    except Exception as exc:
+        print(f"Email send failed: {exc}")
 
 
 def _now_iso() -> str:

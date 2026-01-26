@@ -2,7 +2,7 @@ import os
 import time
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -258,14 +258,18 @@ def auth_me(user: dict = Depends(get_current_user)) -> dict:
 
 
 @app.post("/auth/forgot")
-def auth_forgot_password(payload: ForgotPasswordRequest, request: Request) -> dict:
+def auth_forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict:
     _rate_limit(request, "forgot")
     email = payload.email.strip().lower()
     user = get_user_by_email(DB_PATH, email)
     if user:
         token = create_password_reset(DB_PATH, user["id"], RESET_TOKEN_TTL_SECONDS)
         reset_link = f"{RESET_LINK_BASE}?reset_token={token}"
-        send_password_reset_email(email, reset_link)
+        background_tasks.add_task(send_password_reset_email, email, reset_link)
     return {"success": True}
 
 
