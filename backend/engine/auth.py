@@ -263,12 +263,18 @@ def send_password_reset_email(recipient: str, reset_link: str) -> None:
     )
 
     try:
-        with smtplib.SMTP(host, port, timeout=10) as server:
-            if use_tls:
-                server.starttls()
-            if username and password:
-                server.login(username, password)
-            server.send_message(message)
+        if port == 465:
+            with smtplib.SMTP_SSL(host, port, timeout=10) as server:
+                if username and password:
+                    server.login(username, password)
+                server.send_message(message)
+        else:
+            with smtplib.SMTP(host, port, timeout=10) as server:
+                if use_tls:
+                    server.starttls()
+                if username and password:
+                    server.login(username, password)
+                server.send_message(message)
     except Exception as exc:
         print(f"Email send failed: {exc}")
 
