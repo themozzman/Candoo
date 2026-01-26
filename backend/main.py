@@ -25,7 +25,8 @@ from backend.engine.runner import start_session, submit_answer
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 FLOWS_DIR = ROOT_DIR / "shared" / "flows"
-DB_PATH = str(ROOT_DIR / "backend" / "storage" / "app.db")
+DB_PATH = os.environ.get("DATABASE_PATH", str(ROOT_DIR / "backend" / "storage" / "app.db"))
+REPORTS_PATH = os.environ.get("REPORTS_PATH", str(ROOT_DIR / "backend" / "reports"))
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "dev-secret")
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "86400"))
 COOKIE_NAME = "session_token"
@@ -69,8 +70,8 @@ class AuthRequest(BaseModel):
 
 @app.on_event("startup")
 def startup() -> None:
-    (ROOT_DIR / "backend" / "storage").mkdir(parents=True, exist_ok=True)
-    (ROOT_DIR / "backend" / "reports").mkdir(parents=True, exist_ok=True)
+    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    Path(REPORTS_PATH).mkdir(parents=True, exist_ok=True)
     init_db(DB_PATH)
     try:
         flows = load_flows(FLOWS_DIR)

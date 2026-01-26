@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from uuid import uuid4
 
@@ -80,10 +81,16 @@ def submit_answer(
         time_spent_ms=time_spent_ms,
         next_step_id=next_step_id,
     )
+    reports_dir = Path(
+        os.environ.get(
+            "REPORTS_PATH",
+            str(Path(__file__).resolve().parents[1] / "reports"),
+        )
+    )
     write_report_snapshot(
         db_path=db_path,
         flow=flow,
-        reports_dir=Path(__file__).resolve().parents[1] / "reports",
+        reports_dir=reports_dir,
     )
 
     reveal = False
