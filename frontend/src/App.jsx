@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   fetchFlows,
   fetchMe,
+  fetchReport,
   login,
   logout,
   signup,
@@ -26,6 +27,9 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
+  const [reportFlowId, setReportFlowId] = useState("");
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     const loadFlows = (preserveSelection = true) => {
@@ -35,6 +39,9 @@ export default function App() {
           if (data.length > 0) {
             if (!preserveSelection || !data.find((flow) => flow.id === selectedFlowId)) {
               setSelectedFlowId(data[0].id);
+            }
+            if (!preserveSelection || !data.find((flow) => flow.id === reportFlowId)) {
+              setReportFlowId(data[0].id);
             }
           }
         })
@@ -148,6 +155,24 @@ export default function App() {
       resetSessionView();
     }
   };
+
+  const handleLoadReport = async () => {
+    if (!reportFlowId) {
+      return;
+    }
+    setError("");
+    setReportLoading(true);
+    try {
+      const data = await fetchReport(reportFlowId);
+      setReportData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const formatPercent = (value) => `${Math.round(value * 100)}%`;
 
   return (
     <div>
@@ -264,6 +289,92 @@ export default function App() {
           )}
 
           <Feedback result={result} />
+        </section>
+      )}
+
+      {authUser && (
+        <section>
+          <h2>Teacher Reports</h2>
+          <div>
+            <label>
+              Flow:
+              <select
+                value={reportFlowId}
+                onChange={(event) => setReportFlowId(event.target.value)}
+              >
+                {flowOptions}
+              </select>
+            </label>
+            <button onClick={handleLoadReport} disabled={reportLoading}>
+              {reportLoading ? "Loading..." : "Load Report"}
+            </button>
+          </div>
+
+          {!reportData && <div>Select a flow to view report data.</div>}
+
+          {reportData && (
+            <div>
+              <h3>Funnel</h3>
+              {reportData.funnel && reportData.funnel.length > 0 ? (
+                <ul>
+                  {reportData.funnel.map((step) => (
+                    <li key={step.step_id}>
+                      {step.prompt} — Reached: {step.students_reached}, Correct:{" "}
+                      {step.students_correct}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div>No funnel data yet.</div>
+              )}
+
+              <h3>Bottlenecks</h3>
+              {reportData.bottlenecks && reportData.bottlenecks.length > 0 ? (
+                <ul>
+                  {reportData.bottlenecks.map((step) => (
+                    <li key={step.step_id}>
+                      {step.prompt} — Wrong: {formatPercent(step.wrong_rate)}{" "}
+                      Skip: {formatPercent(step.skip_rate)} Attempts: {step.attempts}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div>No bottlenecks yet.</div>
+              )}
+
+              <h3>Students</h3>
+              {reportData.students && reportData.students.length > 0 ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Attempts</th>
+                      <th>Completion</th>
+                      <th>Wrong Rate</th>
+                      <th>Skip Rate</th>
+                      <th>At Risk</th>
+                      <th>Most Troublesome Step</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reportData.students.map((student) => (
+                      <tr key={student.student_id}>
+                        <td>{student.student_id}</td>
+                        <td>{student.attempts}</td>
+                        <td>{formatPercent(student.completion_rate)}</td>
+                        <td>{formatPercent(student.wrong_rate)}</td>
+                        <td>{formatPercent(student.skip_rate)}</td>
+                        <td>{student.at_risk ? "Yes" : "No"}</td>
+                        <td>{student.most_troublesome_step?.step_id || "N/A"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div>No student data yet.</div>
+              )}
+            </div>
+          )}
         </section>
       )}
     </div>
