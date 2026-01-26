@@ -6,8 +6,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend.engine.analytics import get_teacher_report, init_db
-from backend.engine.auth import (
+from engine.analytics import get_teacher_report, init_db
+from engine.auth import (
     AuthError,
     create_session,
     create_user,
@@ -18,8 +18,8 @@ from backend.engine.auth import (
     verify_password,
     verify_signed_session,
 )
-from backend.engine.loader import FlowValidationError, load_flows
-from backend.engine.runner import start_session, submit_answer
+from engine.loader import FlowValidationError, load_flows
+from engine.runner import start_session, submit_answer
 
 
 BASE_DIR = Path(__file__).resolve().parent
