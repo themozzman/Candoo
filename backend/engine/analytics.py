@@ -1,0 +1,468 @@
+import json
+import sqlite3
+from pathlib import Path
+from datetime import datetime, timezone
+
+
+def init_db(db_path: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id TEXT PRIMARY KEY,
+                flow_id TEXT NOT NULL,
+                student_id TEXT NOT NULL,
+                current_step_id TEXT,
+                created_at TEXT NOT NULL,
+                attempts INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                flow_id TEXT NOT NULL,
+                student_id TEXT NOT NULL,
+                step_id TEXT NOT NULL,
+                response TEXT,
+                correct INTEGER NOT NULL,
+                skipped INTEGER NOT NULL,
+                attempt_number INTEGER NOT NULL,
+                time_spent_ms INTEGER NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                session_id TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id
+            ON auth_sessions(user_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_attempts_flow_step
+            ON attempts(flow_id, step_id)
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def log_attempt(
+    db_path: str,
+    session_id: str,
+    flow_id: str,
+    student_id: str,
+    step_id: str,
+    response: str,
+    correct: bool,
+    skipped: bool,
+    attempt_number: int,
+    time_spent_ms: int,
+    next_step_id: str | None,
+) -> None:
+    now = _now_iso()
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO attempts (
+                session_id, flow_id, student_id, step_id, response,
+                correct, skipped, attempt_number, time_spent_ms, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id,
+                flow_id,
+                student_id,
+                step_id,
+                response,
+                1 if correct else 0,
+                1 if skipped else 0,
+                attempt_number,
+                time_spent_ms,
+                now,
+            ),
+        )
+        conn.execute(
+            """
+            UPDATE sessions
+            SET current_step_id = ?, attempts = attempts + 1
+            WHERE session_id = ?
+            """,
+            (next_step_id, session_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def write_report_snapshot(db_path: str, flow: dict, reports_dir: Path) -> None:
+    steps = [flow["steps"][step_id] for step_id in flow["steps"].keys()]
+    report = get_teacher_report(db_path, flow["id"], steps)
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    slug = _slugify(flow.get("statement") or flow.get("title") or flow.get("id"))
+    filename = f"{slug}.json" if slug else f"{flow['id']}.json"
+    path = reports_dir / filename
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(report, handle, indent=2)
+    student_filename = f"Student_{filename}"
+    student_path = reports_dir / student_filename
+    with student_path.open("w", encoding="utf-8") as handle:
+        json.dump({"flow_id": flow["id"], "students": report.get("students", [])}, handle, indent=2)
+
+
+def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
+    conn = sqlite3.connect(db_path)
+    try:
+        summary = []
+        wrong_samples = {}
+        funnel = []
+        total_steps = len(steps)
+
+        for step in steps:
+            step_id = step["id"]
+            attempts = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND step_id = ?
+                """,
+                (flow_id, step_id),
+            )
+            wrong = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND step_id = ? AND correct = 0 AND skipped = 0
+                """,
+                (flow_id, step_id),
+            )
+            skipped = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND step_id = ? AND skipped = 1
+                """,
+                (flow_id, step_id),
+            )
+            correct = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND step_id = ? AND correct = 1
+                """,
+                (flow_id, step_id),
+            )
+            reached = _scalar(
+                conn,
+                """
+                SELECT COUNT(DISTINCT student_id) FROM attempts
+                WHERE flow_id = ? AND step_id = ?
+                """,
+                (flow_id, step_id),
+            )
+            correct_students = _scalar(
+                conn,
+                """
+                SELECT COUNT(DISTINCT student_id) FROM attempts
+                WHERE flow_id = ? AND step_id = ? AND correct = 1
+                """,
+                (flow_id, step_id),
+            )
+            avg_attempts_before_correct = _scalar_float(
+                conn,
+                """
+                SELECT AVG(min_attempts) FROM (
+                    SELECT session_id, MIN(attempt_number) AS min_attempts
+                    FROM attempts
+                    WHERE flow_id = ? AND step_id = ? AND correct = 1
+                    GROUP BY session_id
+                )
+                """,
+                (flow_id, step_id),
+            )
+            wrong_rows = conn.execute(
+                """
+                SELECT response, COUNT(*) as cnt FROM attempts
+                WHERE flow_id = ? AND step_id = ? AND correct = 0 AND skipped = 0
+                  AND response IS NOT NULL AND response != ''
+                GROUP BY response
+                ORDER BY cnt DESC
+                LIMIT 5
+                """,
+                (flow_id, step_id),
+            ).fetchall()
+            common_wrong = [{"response": row[0], "count": row[1]} for row in wrong_rows]
+            wrong_samples[step_id] = common_wrong
+
+            wrong_rate = (wrong / attempts) if attempts else 0.0
+            skip_rate = (skipped / attempts) if attempts else 0.0
+
+            summary.append(
+                {
+                    "step_id": step_id,
+                    "prompt": step.get("prompt", ""),
+                    "attempts": attempts,
+                    "correct_count": correct,
+                    "wrong_count": wrong,
+                    "skip_count": skipped,
+                    "wrong_rate": round(wrong_rate, 4),
+                    "skip_rate": round(skip_rate, 4),
+                    "avg_attempts_before_correct": avg_attempts_before_correct,
+                }
+            )
+
+            funnel.append(
+                {
+                    "step_id": step_id,
+                    "prompt": step.get("prompt", ""),
+                    "students_reached": reached,
+                    "students_correct": correct_students,
+                }
+            )
+
+        bottlenecks = sorted(
+            summary,
+            key=lambda item: (item["wrong_rate"], item["skip_rate"], item["attempts"]),
+            reverse=True,
+        )
+
+        students = _build_student_report(conn, flow_id, steps, total_steps)
+
+        return {
+            "flow_id": flow_id,
+            "summary_by_step": summary,
+            "bottlenecks": bottlenecks[:5],
+            "funnel": funnel,
+            "wrong_response_samples": wrong_samples,
+            "students": students,
+        }
+    finally:
+        conn.close()
+
+
+def _scalar(conn: sqlite3.Connection, query: str, params: tuple) -> int:
+    row = conn.execute(query, params).fetchone()
+    return int(row[0]) if row and row[0] is not None else 0
+
+
+def _scalar_float(conn: sqlite3.Connection, query: str, params: tuple) -> float | None:
+    row = conn.execute(query, params).fetchone()
+    return float(row[0]) if row and row[0] is not None else None
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _build_student_report(
+    conn: sqlite3.Connection, flow_id: str, steps: list[dict], total_steps: int
+) -> list[dict]:
+    students = [
+        row[0]
+        for row in conn.execute(
+            """
+            SELECT DISTINCT student_id FROM attempts
+            WHERE flow_id = ?
+            ORDER BY student_id
+            """,
+            (flow_id,),
+        ).fetchall()
+    ]
+    step_ids = [step["id"] for step in steps]
+    report = []
+
+    for student_id in students:
+        attempts = _scalar(
+            conn,
+            """
+            SELECT COUNT(*) FROM attempts
+            WHERE flow_id = ? AND student_id = ?
+            """,
+            (flow_id, student_id),
+        )
+        wrong = _scalar(
+            conn,
+            """
+            SELECT COUNT(*) FROM attempts
+            WHERE flow_id = ? AND student_id = ? AND correct = 0 AND skipped = 0
+            """,
+            (flow_id, student_id),
+        )
+        skipped = _scalar(
+            conn,
+            """
+            SELECT COUNT(*) FROM attempts
+            WHERE flow_id = ? AND student_id = ? AND skipped = 1
+            """,
+            (flow_id, student_id),
+        )
+        correct = _scalar(
+            conn,
+            """
+            SELECT COUNT(*) FROM attempts
+            WHERE flow_id = ? AND student_id = ? AND correct = 1
+            """,
+            (flow_id, student_id),
+        )
+        steps_reached = _scalar(
+            conn,
+            """
+            SELECT COUNT(DISTINCT step_id) FROM attempts
+            WHERE flow_id = ? AND student_id = ?
+            """,
+            (flow_id, student_id),
+        )
+        steps_correct = _scalar(
+            conn,
+            """
+            SELECT COUNT(DISTINCT step_id) FROM attempts
+            WHERE flow_id = ? AND student_id = ? AND correct = 1
+            """,
+            (flow_id, student_id),
+        )
+        avg_attempts_per_step = (
+            (attempts / steps_reached) if steps_reached else None
+        )
+        completion_rate = (
+            (steps_correct / total_steps) if total_steps else 0.0
+        )
+        wrong_rate = (wrong / attempts) if attempts else 0.0
+        skip_rate = (skipped / attempts) if attempts else 0.0
+
+        last_attempt = conn.execute(
+            """
+            SELECT MAX(created_at) FROM attempts
+            WHERE flow_id = ? AND student_id = ?
+            """,
+            (flow_id, student_id),
+        ).fetchone()
+        last_attempt_at = last_attempt[0] if last_attempt else None
+
+        misconceptions = {}
+        for step_id in step_ids:
+            rows = conn.execute(
+                """
+                SELECT response, COUNT(*) as cnt FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ?
+                  AND correct = 0 AND skipped = 0
+                  AND response IS NOT NULL AND response != ''
+                GROUP BY response
+                ORDER BY cnt DESC
+                LIMIT 3
+                """,
+                (flow_id, student_id, step_id),
+            ).fetchall()
+            if rows:
+                misconceptions[step_id] = [
+                    {"response": row[0], "count": row[1]} for row in rows
+                ]
+
+        troublesome = None
+        for step_id in step_ids:
+            step_wrong = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ?
+                  AND correct = 0 AND skipped = 0
+                """,
+                (flow_id, student_id, step_id),
+            )
+            step_attempts = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ?
+                """,
+                (flow_id, student_id, step_id),
+            )
+            if step_attempts == 0:
+                continue
+            candidate = {
+                "step_id": step_id,
+                "wrong_count": step_wrong,
+                "attempts": step_attempts,
+            }
+            if troublesome is None:
+                troublesome = candidate
+            else:
+                if (
+                    candidate["wrong_count"] > troublesome["wrong_count"]
+                    or (
+                        candidate["wrong_count"] == troublesome["wrong_count"]
+                        and candidate["attempts"] > troublesome["attempts"]
+                    )
+                ):
+                    troublesome = candidate
+
+        at_risk = (
+            wrong_rate >= 0.4
+            or skip_rate >= 0.25
+            or completion_rate < 0.6
+        )
+
+        report.append(
+            {
+                "student_id": student_id,
+                "attempts": attempts,
+                "correct_count": correct,
+                "wrong_count": wrong,
+                "skip_count": skipped,
+                "steps_reached": steps_reached,
+                "steps_correct": steps_correct,
+                "avg_attempts_per_step": round(avg_attempts_per_step, 2)
+                if avg_attempts_per_step is not None
+                else None,
+                "completion_rate": round(completion_rate, 4),
+                "wrong_rate": round(wrong_rate, 4),
+                "skip_rate": round(skip_rate, 4),
+                "last_attempt_at": last_attempt_at,
+                "most_troublesome_step": troublesome,
+                "misconceptions": misconceptions,
+                "at_risk": at_risk,
+            }
+        )
+
+    return report
+
+
+def _slugify(value: str) -> str:
+    result = []
+    for char in value.lower():
+        if char.isalnum():
+            result.append(char)
+        elif char in {" ", "-", "_"}:
+            result.append("_")
+    slug = "".join(result).strip("_")
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return slug[:80]
