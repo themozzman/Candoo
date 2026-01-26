@@ -24,7 +24,13 @@ from engine.runner import start_session, submit_answer
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
-FLOWS_DIR = ROOT_DIR / "shared" / "flows"
+_flows_env = os.environ.get("FLOWS_PATH", "").strip()
+if _flows_env:
+    FLOWS_DIR = Path(_flows_env)
+else:
+    primary_flows = ROOT_DIR / "shared" / "flows"
+    fallback_flows = BASE_DIR / "shared" / "flows"
+    FLOWS_DIR = primary_flows if primary_flows.exists() else fallback_flows
 DB_PATH = os.environ.get("DATABASE_PATH", str(ROOT_DIR / "backend" / "storage" / "app.db"))
 REPORTS_PATH = os.environ.get("REPORTS_PATH", str(ROOT_DIR / "backend" / "reports"))
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "dev-secret")
