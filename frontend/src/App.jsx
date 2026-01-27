@@ -22,6 +22,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [viewMode, setViewMode] = useState("catalog");
+  const [catalogNotice, setCatalogNotice] = useState("");
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -249,8 +250,40 @@ export default function App() {
     return combined;
   };
 
-  const handleCourseSelect = (flowId) => {
-    setSelectedFlowId(flowId);
+  const catalogCourses = useMemo(() => {
+    const primaryFlowId = flows[0]?.id ?? "";
+    return [
+      {
+        id: "french-10a",
+        name: "French 10A",
+        subtitle: "Introduction to French",
+        description: "Begin your journey into French language and culture.",
+        flowId: ""
+      },
+      {
+        id: "french-20b",
+        name: "French 20B",
+        subtitle: "Intermediate French",
+        description: "Continue developing your French language skills.",
+        flowId: ""
+      },
+      {
+        id: "calc-10b",
+        name: "Calc 10B",
+        subtitle: "Calculus",
+        description: "Explore derivatives, integrals, and their applications.",
+        flowId: primaryFlowId
+      }
+    ];
+  }, [flows]);
+
+  const handleCourseSelect = (course) => {
+    if (!course.flowId) {
+      setCatalogNotice("This course is coming soon.");
+      return;
+    }
+    setCatalogNotice("");
+    setSelectedFlowId(course.flowId);
     setViewMode("runner");
   };
 
@@ -486,20 +519,22 @@ export default function App() {
                 </p>
               </div>
             </div>
+            {catalogNotice && (
+              <div className="course-note">{catalogNotice}</div>
+            )}
             <div className="course-grid">
-              {flows.map((flow) => (
+              {catalogCourses.map((course) => (
                 <button
-                  key={flow.id}
+                  key={course.id}
                   type="button"
                   className="course-card"
-                  onClick={() => handleCourseSelect(flow.id)}
+                  onClick={() => handleCourseSelect(course)}
+                  disabled={!course.flowId}
                 >
                   <div className="course-icon">📘</div>
-                  <div className="course-name">{flow.title}</div>
-                  {flow.topic && <div className="course-topic">{flow.topic}</div>}
-                  <div className="course-description">
-                    {courseDescription(flow)}
-                  </div>
+                  <div className="course-name">{course.name}</div>
+                  <div className="course-topic">{course.subtitle}</div>
+                  <div className="course-description">{course.description}</div>
                 </button>
               ))}
             </div>
