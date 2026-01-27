@@ -1,8 +1,10 @@
 import hmac
+import json
 import os
 import secrets
 import sqlite3
 import smtplib
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from hashlib import sha256
@@ -247,6 +249,35 @@ def send_password_reset_email(recipient: str, reset_link: str) -> None:
     password = os.environ.get("SMTP_PASSWORD")
     sender = os.environ.get("SMTP_FROM")
     use_tls = os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
+    resend_api_key = os.environ.get("RESEND_API_KEY")
+
+    if resend_api_key:
+        try:
+            payload = {
+                "from": sender,
+                "to": [recipient],
+                "subject": "Reset your password",
+                "text": (
+                    "Use the link below to reset your password:\n\n"
+                    f"{reset_link}\n\n"
+                    "If you did not request this, you can ignore this email."
+                ),
+            }
+            data = json.dumps(payload).encode("utf-8")
+            request = urllib.request.Request(
+                "https://api.resend.com/emails",
+                data=data,
+                headers={
+                    "Authorization": f"Bearer {resend_api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=10) as response:
+                response.read()
+            return
+        except Exception as exc:
+            print(f"Resend API send failed: {exc}")
 
     if not host or not sender:
         print("Email not sent: SMTP settings missing.")
