@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from pathlib import Path
@@ -6,7 +7,21 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, R
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from engine.analytics import get_teacher_report, init_db, reset_auth_data, reset_learning_data
+from engine.analytics import (
+    get_ai_flow,
+    get_ai_spec,
+    get_course,
+    get_teacher_report,
+    init_db,
+    list_courses,
+    mark_ai_flow_approved,
+    reset_auth_data,
+    reset_learning_data,
+    save_ai_flow,
+    save_ai_spec,
+    set_course_flow,
+)
+from engine.ai_generation import AIFlowError, generate_flow, generate_spec, now_label
 from engine.auth import (
     AuthError,
     create_session,
@@ -28,7 +43,7 @@ from engine.auth import (
     verify_password_reset,
     verify_signed_session,
 )
-from engine.loader import FlowValidationError, load_flows
+from engine.loader import FlowValidationError, load_flows, validate_flow
 from engine.runner import start_session, submit_answer
 
 
@@ -49,6 +64,7 @@ RESET_TOKEN_TTL_SECONDS = int(os.environ.get("RESET_TOKEN_TTL_SECONDS", "3600"))
 VERIFY_CODE_TTL_SECONDS = int(os.environ.get("VERIFY_CODE_TTL_SECONDS", "600"))
 RESET_LINK_BASE = os.environ.get("RESET_LINK_BASE", "http://localhost:5173")
 ADMIN_RESET_TOKEN = os.environ.get("ADMIN_RESET_TOKEN", "")
+ADMIN_FLOW_TOKEN = os.environ.get("ADMIN_FLOW_TOKEN", "")
 COOKIE_NAME = "session_token"
 CORS_ORIGINS = [
     origin.strip()
@@ -114,6 +130,23 @@ class AdminResetRequest(BaseModel):
     mode: str = "auth"
 
 
+class AdminSpecRequest(BaseModel):
+    token: str
+    topic: str
+    course_id: str
+
+
+class AdminSpecApproveRequest(BaseModel):
+    token: str
+    spec_id: str
+    spec_override: dict | None = None
+
+
+class AdminFlowApproveRequest(BaseModel):
+    token: str
+    flow_id: str
+
+
 @app.on_event("startup")
 def startup() -> None:
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +184,11 @@ def _rate_limit(request: Request, action: str) -> None:
     _rate_limit_store[key] = timestamps
 
 
+def _reload_flows() -> None:
+    flows = load_flows(FLOWS_DIR)
+    app.state.flows = flows
+
+
 def get_current_user(request: Request) -> dict:
     token = request.cookies.get(COOKIE_NAME)
     session_id = verify_signed_session(token, AUTH_SECRET)
@@ -174,6 +212,11 @@ def list_flows() -> list[dict]:
         {"id": flow["id"], "title": flow["title"], "topic": flow["topic"]}
         for flow in flows.values()
     ]
+
+
+@app.get("/courses")
+def list_courses_endpoint() -> list[dict]:
+    return list_courses(DB_PATH)
 
 
 @app.post("/session/start")
@@ -344,3 +387,58 @@ def admin_reset(payload: AdminResetRequest) -> dict:
     else:
         raise HTTPException(status_code=400, detail="Invalid mode")
     return {"success": True, "mode": mode}
+
+
+@app.post("/admin/ai/spec")
+def admin_ai_spec(payload: AdminSpecRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    course = get_course(DB_PATH, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    try:
+        spec = generate_spec(payload.topic, course)
+    except AIFlowError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    spec_id = f"spec-{payload.course_id}-{now_label()}"
+    save_ai_spec(DB_PATH, spec_id, payload.course_id, payload.topic, spec)
+    return {"spec_id": spec_id, "spec": spec}
+
+
+@app.post("/admin/ai/spec/approve")
+def admin_ai_spec_approve(payload: AdminSpecApproveRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    record = get_ai_spec(DB_PATH, payload.spec_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Spec not found")
+    spec = payload.spec_override if payload.spec_override else record["spec"]
+    flow_id = f"{record['course_id']}-{now_label()}"
+    try:
+        flow = generate_flow(spec, flow_id)
+        validate_flow(flow, source="ai")
+    except (AIFlowError, FlowValidationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    save_ai_flow(DB_PATH, flow_id, record["id"], record["course_id"], flow)
+    return {"flow_id": flow_id, "flow": flow}
+
+
+@app.post("/admin/ai/flow/approve")
+def admin_ai_flow_approve(payload: AdminFlowApproveRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    record = get_ai_flow(DB_PATH, payload.flow_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    flow = record["flow"]
+    try:
+        validate_flow(flow, source="ai")
+    except FlowValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    FLOWS_DIR.mkdir(parents=True, exist_ok=True)
+    path = FLOWS_DIR / f"{payload.flow_id}.json"
+    path.write_text(json.dumps(flow, indent=2), encoding="utf-8")
+    set_course_flow(DB_PATH, record["course_id"], payload.flow_id)
+    mark_ai_flow_approved(DB_PATH, payload.flow_id)
+    _reload_flows()
+    return {"success": True, "flow_id": payload.flow_id, "course_id": record["course_id"]}

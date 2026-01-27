@@ -49,6 +49,10 @@ def _validate_flow(flow: dict, source: str) -> None:
         raise FlowValidationError(f"{source}: startStepId not found in steps")
 
 
+def validate_flow(flow: dict, source: str = "api") -> None:
+    _validate_flow(flow, source)
+
+
 def _validate_step(step: dict, source: str) -> None:
     for key in ["id", "type", "prompt", "answer", "feedback", "attemptPolicy", "next"]:
         _require(step, key, source, prefix=f"step {step.get('id')}")

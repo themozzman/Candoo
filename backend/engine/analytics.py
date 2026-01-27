@@ -121,7 +121,45 @@ def init_db(db_path: str) -> None:
             ON attempts(flow_id, step_id)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS courses (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                subtitle TEXT NOT NULL,
+                description TEXT NOT NULL,
+                active_flow_id TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ai_specs (
+                id TEXT PRIMARY KEY,
+                course_id TEXT NOT NULL,
+                topic TEXT NOT NULL,
+                spec_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ai_flows (
+                id TEXT PRIMARY KEY,
+                spec_id TEXT NOT NULL,
+                course_id TEXT NOT NULL,
+                flow_json TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                approved_at TEXT
+            )
+            """
+        )
         _ensure_users_email_column(conn)
+        _ensure_courses(conn)
         conn.commit()
     finally:
         conn.close()
@@ -139,6 +177,188 @@ def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
         ON users(email)
         """
     )
+
+
+def _ensure_courses(conn: sqlite3.Connection) -> None:
+    existing = conn.execute("SELECT COUNT(*) FROM courses").fetchone()
+    count = int(existing[0]) if existing else 0
+    if count > 0:
+        return
+    now = _now_iso()
+    defaults = [
+        (
+            "french-10a",
+            "French 10A",
+            "Introduction to French",
+            "Begin your journey into French language and culture.",
+            None,
+            now,
+        ),
+        (
+            "french-20b",
+            "French 20B",
+            "Intermediate French",
+            "Continue developing your French language skills.",
+            None,
+            now,
+        ),
+        (
+            "calc-10b",
+            "Calc 10B",
+            "Calculus",
+            "Explore derivatives, integrals, and their applications.",
+            None,
+            now,
+        ),
+    ]
+    conn.executemany(
+        """
+        INSERT INTO courses (
+            id, name, subtitle, description, active_flow_id, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        defaults,
+    )
+
+
+def list_courses(db_path: str) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, name, subtitle, description, active_flow_id
+            FROM courses
+            ORDER BY id
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def get_course(db_path: str, course_id: str) -> dict | None:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            """
+            SELECT id, name, subtitle, description, active_flow_id
+            FROM courses
+            WHERE id = ?
+            """,
+            (course_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def set_course_flow(db_path: str, course_id: str, flow_id: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE courses
+            SET active_flow_id = ?
+            WHERE id = ?
+            """,
+            (flow_id, course_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def save_ai_spec(db_path: str, spec_id: str, course_id: str, topic: str, spec: dict) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO ai_specs (id, course_id, topic, spec_json, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (spec_id, course_id, topic, json.dumps(spec), "spec_pending", _now_iso()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_ai_spec(db_path: str, spec_id: str) -> dict | None:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            """
+            SELECT id, course_id, topic, spec_json, status, created_at
+            FROM ai_specs
+            WHERE id = ?
+            """,
+            (spec_id,),
+        ).fetchone()
+        if not row:
+            return None
+        data = dict(row)
+        data["spec"] = json.loads(data.pop("spec_json"))
+        return data
+    finally:
+        conn.close()
+
+
+def save_ai_flow(
+    db_path: str, flow_id: str, spec_id: str, course_id: str, flow: dict
+) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO ai_flows (id, spec_id, course_id, flow_json, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (flow_id, spec_id, course_id, json.dumps(flow), "flow_pending", _now_iso()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_ai_flow(db_path: str, flow_id: str) -> dict | None:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            """
+            SELECT id, spec_id, course_id, flow_json, status, created_at, approved_at
+            FROM ai_flows
+            WHERE id = ?
+            """,
+            (flow_id,),
+        ).fetchone()
+        if not row:
+            return None
+        data = dict(row)
+        data["flow"] = json.loads(data.pop("flow_json"))
+        return data
+    finally:
+        conn.close()
+
+
+def mark_ai_flow_approved(db_path: str, flow_id: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE ai_flows
+            SET status = ?, approved_at = ?
+            WHERE id = ?
+            """,
+            ("flow_approved", _now_iso(), flow_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def reset_auth_data(db_path: str) -> None:
@@ -234,6 +454,9 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
         summary = []
         wrong_samples = {}
         funnel = []
+        insight_by_skill = {}
+        misconception_counts = {}
+        step_insights = {}
         total_steps = len(steps)
 
         for step in steps:
@@ -312,6 +535,42 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
             common_wrong = [{"response": row[0], "count": row[1]} for row in wrong_rows]
             wrong_samples[step_id] = common_wrong
 
+            insights = step.get("insights", {}) if isinstance(step.get("insights"), dict) else {}
+            step_insights[step_id] = insights
+            skill_key = insights.get("skill") or insights.get("rule")
+            if skill_key:
+                current = insight_by_skill.get(
+                    skill_key,
+                    {"attempts": 0, "correct": 0, "wrong": 0, "skipped": 0},
+                )
+                current["attempts"] += attempts
+                current["correct"] += correct
+                current["wrong"] += wrong
+                current["skipped"] += skipped
+                insight_by_skill[skill_key] = current
+
+            option_insights = step.get("option_insights") or {}
+            if isinstance(option_insights, dict):
+                for response, count in common_wrong:
+                    tag = option_insights.get(response, {})
+                    if isinstance(tag, dict):
+                        mis = tag.get("misconception") or tag.get("id")
+                        if mis:
+                            misconception_counts[mis] = misconception_counts.get(mis, 0) + count
+
+            common_wrong_tags = step.get("common_wrong") or []
+            if isinstance(common_wrong_tags, list):
+                for entry in common_wrong_tags:
+                    if not isinstance(entry, dict):
+                        continue
+                    response = entry.get("response")
+                    mis = entry.get("misconception") or entry.get("id")
+                    if not response or not mis:
+                        continue
+                    count = next((row[1] for row in wrong_rows if row[0] == response), 0)
+                    if count:
+                        misconception_counts[mis] = misconception_counts.get(mis, 0) + count
+
             wrong_rate = (wrong / attempts) if attempts else 0.0
             skip_rate = (skipped / attempts) if attempts else 0.0
 
@@ -352,6 +611,11 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
             "bottlenecks": bottlenecks[:5],
             "funnel": funnel,
             "wrong_response_samples": wrong_samples,
+            "step_insights": step_insights,
+            "insight_summary": {
+                "by_skill": insight_by_skill,
+                "misconceptions": misconception_counts,
+            },
             "students": students,
         }
     finally:

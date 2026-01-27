@@ -5,6 +5,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      "/admin": "http://127.0.0.1:8000",
+      "/courses": "http://127.0.0.1:8000",
       "/flows": "http://127.0.0.1:8000",
       "/session": "http://127.0.0.1:8000",
       "/teacher": "http://127.0.0.1:8000",

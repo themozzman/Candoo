@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  fetchFlows,
+  adminApproveFlow,
+  adminApproveSpec,
+  adminGenerateSpec,
+  fetchCourses,
   fetchMe,
   login,
   logout,
@@ -16,13 +19,25 @@ import SAStep from "./components/SAStep.jsx";
 import Feedback from "./components/Feedback.jsx";
 
 export default function App() {
-  const [flows, setFlows] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState("");
   const [selectedFlowId, setSelectedFlowId] = useState("");
   const [studentId, setStudentId] = useState("student-1");
   const [authUser, setAuthUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [viewMode, setViewMode] = useState("catalog");
   const [catalogNotice, setCatalogNotice] = useState("");
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminToken, setAdminToken] = useState("");
+  const [adminTopic, setAdminTopic] = useState("");
+  const [adminCourseId, setAdminCourseId] = useState("");
+  const [adminSpec, setAdminSpec] = useState(null);
+  const [adminSpecId, setAdminSpecId] = useState("");
+  const [adminSpecText, setAdminSpecText] = useState("");
+  const [adminFlow, setAdminFlow] = useState(null);
+  const [adminFlowId, setAdminFlowId] = useState("");
+  const [adminFlowText, setAdminFlowText] = useState("");
+  const [adminStatus, setAdminStatus] = useState("");
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -39,24 +54,28 @@ export default function App() {
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
 
-  useEffect(() => {
-    const loadFlows = (preserveSelection = true) => {
-      fetchFlows()
-        .then((data) => {
-          setFlows(data);
-          if (data.length > 0) {
-            if (!preserveSelection || !data.find((flow) => flow.id === selectedFlowId)) {
-              setSelectedFlowId(data[0].id);
-            }
+  const loadCourses = (preserveSelection = true) => {
+    fetchCourses()
+      .then((data) => {
+        setCourses(data);
+        if (data.length > 0) {
+          const current = data.find((course) => course.id === selectedCourseId);
+          if (!preserveSelection || !current) {
+            setSelectedCourseId(data[0].id);
+            setSelectedFlowId(data[0].active_flow_id || "");
+          } else if (current.active_flow_id !== selectedFlowId) {
+            setSelectedFlowId(current.active_flow_id || "");
           }
-        })
-        .catch((err) => setError(err.message));
-    };
+        }
+      })
+      .catch((err) => setError(err.message));
+  };
 
-    loadFlows(false);
+  useEffect(() => {
+    loadCourses(false);
 
     const handleFocus = () => {
-      loadFlows(true);
+      loadCourses(true);
     };
 
     window.addEventListener("focus", handleFocus);
@@ -87,14 +106,19 @@ export default function App() {
     }
   }, []);
 
-  const flowOptions = useMemo(
+  const courseOptions = useMemo(
     () =>
-      flows.map((flow) => (
-        <option key={flow.id} value={flow.id}>
-          {flow.title} ({flow.topic})
+      courses.map((course) => (
+        <option key={course.id} value={course.id}>
+          {course.name}
         </option>
       )),
-    [flows]
+    [courses]
+  );
+
+  const selectedCourse = useMemo(
+    () => courses.find((course) => course.id === selectedCourseId),
+    [courses, selectedCourseId]
   );
 
   const resetSessionView = () => {
@@ -232,59 +256,56 @@ export default function App() {
     }
   };
 
-  const courseDescription = (flow) => {
-    if (!flow) {
-      return "";
-    }
-    const parts = [];
-    if (flow.topic) {
-      parts.push(flow.topic);
-    }
-    if (flow.statement) {
-      parts.push(flow.statement);
-    }
-    const combined = parts.join(" • ");
-    if (combined.length > 140) {
-      return `${combined.slice(0, 137)}...`;
-    }
-    return combined;
-  };
-
-  const catalogCourses = useMemo(() => {
-    const primaryFlowId = flows[0]?.id ?? "";
-    return [
-      {
-        id: "french-10a",
-        name: "French 10A",
-        subtitle: "Introduction to French",
-        description: "Begin your journey into French language and culture.",
-        flowId: ""
-      },
-      {
-        id: "french-20b",
-        name: "French 20B",
-        subtitle: "Intermediate French",
-        description: "Continue developing your French language skills.",
-        flowId: ""
-      },
-      {
-        id: "calc-10b",
-        name: "Calc 10B",
-        subtitle: "Calculus",
-        description: "Explore derivatives, integrals, and their applications.",
-        flowId: primaryFlowId
-      }
-    ];
-  }, [flows]);
-
   const handleCourseSelect = (course) => {
-    if (!course.flowId) {
+    if (!course.active_flow_id) {
       setCatalogNotice("This course is coming soon.");
       return;
     }
     setCatalogNotice("");
-    setSelectedFlowId(course.flowId);
+    setSelectedCourseId(course.id);
+    setSelectedFlowId(course.active_flow_id);
     setViewMode("runner");
+  };
+
+  const handleAdminGenerateSpec = async (event) => {
+    event.preventDefault();
+    setAdminStatus("");
+    try {
+      const courseId = adminCourseId || selectedCourseId;
+      const data = await adminGenerateSpec(adminToken, adminTopic, courseId);
+      setAdminSpec(data.spec);
+      setAdminSpecId(data.spec_id);
+      setAdminSpecText(JSON.stringify(data.spec, null, 2));
+      setAdminFlow(null);
+      setAdminFlowId("");
+      setAdminFlowText("");
+    } catch (err) {
+      setAdminStatus(err.message);
+    }
+  };
+
+  const handleAdminApproveSpec = async () => {
+    setAdminStatus("");
+    try {
+      const override = adminSpecText ? JSON.parse(adminSpecText) : null;
+      const data = await adminApproveSpec(adminToken, adminSpecId, override);
+      setAdminFlow(data.flow);
+      setAdminFlowId(data.flow_id);
+      setAdminFlowText(JSON.stringify(data.flow, null, 2));
+    } catch (err) {
+      setAdminStatus(err.message);
+    }
+  };
+
+  const handleAdminApproveFlow = async () => {
+    setAdminStatus("");
+    try {
+      await adminApproveFlow(adminToken, adminFlowId);
+      setAdminStatus("Flow approved and published.");
+      loadCourses(true);
+    } catch (err) {
+      setAdminStatus(err.message);
+    }
   };
 
   const authTitle = {
@@ -315,6 +336,13 @@ export default function App() {
           </div>
           <div className="user-chip">
             <span className="user-name">{authUser.username}</span>
+            <button
+              className="button-ghost"
+              type="button"
+              onClick={() => setAdminOpen((prev) => !prev)}
+            >
+              {adminOpen ? "Close admin" : "Admin"}
+            </button>
             <button className="button-ghost" onClick={handleLogout}>
               Log out
             </button>
@@ -523,13 +551,13 @@ export default function App() {
               <div className="course-note">{catalogNotice}</div>
             )}
             <div className="course-grid">
-              {catalogCourses.map((course) => (
+              {courses.map((course) => (
                 <button
                   key={course.id}
                   type="button"
                   className="course-card"
                   onClick={() => handleCourseSelect(course)}
-                  disabled={!course.flowId}
+                  disabled={!course.active_flow_id}
                 >
                   <div className="course-icon">📘</div>
                   <div className="course-name">{course.name}</div>
@@ -538,6 +566,81 @@ export default function App() {
                 </button>
               ))}
             </div>
+            {adminOpen && (
+              <div className="admin-panel">
+                <h3 className="card-title">Admin: Generate AI Flow</h3>
+                <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
+                  <div className="form-field">
+                    <label className="form-label">Admin token</label>
+                    <input
+                      className="form-input"
+                      type="password"
+                      value={adminToken}
+                      onChange={(event) => setAdminToken(event.target.value)}
+                      placeholder="Enter admin token"
+                      required
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label className="form-label">Course</label>
+                    <select
+                      className="form-select"
+                      value={adminCourseId || selectedCourseId}
+                      onChange={(event) => setAdminCourseId(event.target.value)}
+                      required
+                    >
+                      <option value="" disabled>
+                        Select a course
+                      </option>
+                      {courseOptions}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label className="form-label">Topic</label>
+                    <input
+                      className="form-input"
+                      type="text"
+                      value={adminTopic}
+                      onChange={(event) => setAdminTopic(event.target.value)}
+                      placeholder="e.g., French adjective to adverb rules"
+                      required
+                    />
+                  </div>
+                  <button className="button-primary" type="submit">
+                    Generate spec
+                  </button>
+                </form>
+                {adminStatus && <div className="admin-status">{adminStatus}</div>}
+                {adminSpec && (
+                  <div className="admin-block">
+                    <h4 className="admin-title">Spec draft</h4>
+                    <textarea
+                      className="admin-textarea"
+                      value={adminSpecText}
+                      onChange={(event) => setAdminSpecText(event.target.value)}
+                      rows={10}
+                    />
+                    <button className="button-secondary" type="button" onClick={handleAdminApproveSpec}>
+                      Approve spec & generate flow
+                    </button>
+                  </div>
+                )}
+                {adminFlow && (
+                  <div className="admin-block">
+                    <h4 className="admin-title">Generated flow</h4>
+                    <textarea
+                      className="admin-textarea"
+                      value={adminFlowText}
+                      onChange={(event) => setAdminFlowText(event.target.value)}
+                      rows={12}
+                    />
+                    <button className="button-primary" type="button" onClick={handleAdminApproveFlow}>
+                      Approve & publish flow
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
 
@@ -547,7 +650,7 @@ export default function App() {
               <div>
                 <h2 className="runner-title">Student Runner</h2>
                 <p className="runner-subtitle">
-                  Choose a flow, start a session, and answer each step.
+                  Practice the selected course and answer each step.
                 </p>
               </div>
               <button
@@ -563,14 +666,22 @@ export default function App() {
               <div className="card">
                 <h3 className="card-title">Session setup</h3>
                 <div className="form-field">
-                  <label className="form-label">Flow</label>
-                  <select
-                    className="form-select"
+                  <label className="form-label">Course</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={selectedCourse?.name || ""}
+                    disabled
+                  />
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Flow ID</label>
+                  <input
+                    className="form-input"
+                    type="text"
                     value={selectedFlowId}
-                    onChange={(event) => setSelectedFlowId(event.target.value)}
-                  >
-                    {flowOptions}
-                  </select>
+                    disabled
+                  />
                 </div>
                 <div className="form-field">
                   <label className="form-label">Student ID</label>
@@ -582,7 +693,11 @@ export default function App() {
                     disabled
                   />
                 </div>
-                <button className="button-primary" onClick={handleStart}>
+                <button
+                  className="button-primary"
+                  onClick={handleStart}
+                  disabled={!selectedFlowId}
+                >
                   Start session
                 </button>
               </div>

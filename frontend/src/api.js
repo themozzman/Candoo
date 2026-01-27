@@ -25,6 +25,10 @@ export function fetchFlows() {
   return request("/flows");
 }
 
+export function fetchCourses() {
+  return request("/courses");
+}
+
 export function startSession(flowId, studentId) {
   return request("/session/start", {
     method: "POST",
@@ -91,4 +95,25 @@ export function logout() {
 
 export function fetchMe() {
   return request("/auth/me");
+}
+
+export function adminGenerateSpec(token, topic, courseId) {
+  return request("/admin/ai/spec", {
+    method: "POST",
+    body: JSON.stringify({ token, topic, course_id: courseId })
+  });
+}
+
+export function adminApproveSpec(token, specId, specOverride) {
+  return request("/admin/ai/spec/approve", {
+    method: "POST",
+    body: JSON.stringify({ token, spec_id: specId, spec_override: specOverride || null })
+  });
+}
+
+export function adminApproveFlow(token, flowId) {
+  return request("/admin/ai/flow/approve", {
+    method: "POST",
+    body: JSON.stringify({ token, flow_id: flowId })
+  });
 }

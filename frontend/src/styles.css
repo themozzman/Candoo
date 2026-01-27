@@ -204,6 +204,12 @@ body {
   padding: 6px 10px;
 }
 
+.button-primary:disabled,
+.button-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .runner {
   display: flex;
   flex-direction: column;
@@ -308,6 +314,56 @@ body {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.admin-panel {
+  margin-top: 32px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.admin-status {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 12px;
+  font-size: 12px;
+  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #0f172a;
 }
 
 .course-header {
