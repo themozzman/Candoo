@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   fetchFlows,
   fetchMe,
-  fetchReport,
   login,
   logout,
   requestPasswordReset,
@@ -36,9 +35,6 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
-  const [reportFlowId, setReportFlowId] = useState("");
-  const [reportData, setReportData] = useState(null);
-  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     const loadFlows = (preserveSelection = true) => {
@@ -48,9 +44,6 @@ export default function App() {
           if (data.length > 0) {
             if (!preserveSelection || !data.find((flow) => flow.id === selectedFlowId)) {
               setSelectedFlowId(data[0].id);
-            }
-            if (!preserveSelection || !data.find((flow) => flow.id === reportFlowId)) {
-              setReportFlowId(data[0].id);
             }
           }
         })
@@ -226,22 +219,6 @@ export default function App() {
       setVerifyCode("");
     } catch (err) {
       setError(err.message);
-    }
-  };
-
-  const handleLoadReport = async () => {
-    if (!reportFlowId) {
-      return;
-    }
-    setError("");
-    setReportLoading(true);
-    try {
-      const data = await fetchReport(reportFlowId);
-      setReportData(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setReportLoading(false);
     }
   };
 
@@ -494,31 +471,6 @@ export default function App() {
         </section>
       )}
 
-      {authUser && (
-        <section>
-          <h2>Teacher Reports</h2>
-          <div>
-            <label>
-              Flow:
-              <select
-                value={reportFlowId}
-                onChange={(event) => setReportFlowId(event.target.value)}
-              >
-                {flowOptions}
-              </select>
-            </label>
-            <button onClick={handleLoadReport} disabled={reportLoading}>
-              {reportLoading ? "Loading..." : "Load Report"}
-            </button>
-          </div>
-
-          {!reportData && <div>Select a flow to view report data.</div>}
-
-          {reportData && (
-            <pre>{JSON.stringify(reportData, null, 2)}</pre>
-          )}
-        </section>
-      )}
     </div>
   );
 }
