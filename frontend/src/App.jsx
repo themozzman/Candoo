@@ -20,6 +20,7 @@ export default function App() {
   const [selectedFlowId, setSelectedFlowId] = useState("");
   const [studentId, setStudentId] = useState("student-1");
   const [authUser, setAuthUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -68,6 +69,9 @@ export default function App() {
       })
       .catch(() => {
         setAuthUser(null);
+      })
+      .finally(() => {
+        setAuthChecked(true);
       });
   }, []);
 
@@ -240,7 +244,7 @@ export default function App() {
 
   return (
     <div className="app">
-      {authUser && (
+      {authChecked && authUser && (
         <header className="app-header">
           <div>
             <h1 className="app-title">Guided Learning Flow Engine</h1>
@@ -258,7 +262,13 @@ export default function App() {
       )}
 
       <main className={authUser ? "app-main" : "auth-main"}>
-        {!authUser && (
+        {!authChecked && (
+          <div className="auth-card">
+            <h2 className="auth-title">Checking session</h2>
+            <p className="auth-subtitle">Loading your account...</p>
+          </div>
+        )}
+        {authChecked && !authUser && (
           <div className="auth-card">
             <h2 className="auth-title">{authTitle}</h2>
             <p className="auth-subtitle">{authSubtitle}</p>
@@ -438,7 +448,7 @@ export default function App() {
           </div>
         )}
 
-        {authUser && (
+        {authChecked && authUser && (
           <section className="runner">
             <div className="runner-header">
               <div>
