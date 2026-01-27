@@ -141,6 +141,28 @@ def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
     )
 
 
+def reset_auth_data(db_path: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM email_verifications")
+        conn.execute("DELETE FROM password_resets")
+        conn.execute("DELETE FROM auth_sessions")
+        conn.execute("DELETE FROM users")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def reset_learning_data(db_path: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM attempts")
+        conn.execute("DELETE FROM sessions")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def log_attempt(
     db_path: str,
     session_id: str,

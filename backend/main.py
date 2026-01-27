@@ -6,7 +6,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, R
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from engine.analytics import get_teacher_report, init_db
+from engine.analytics import get_teacher_report, init_db, reset_auth_data, reset_learning_data
 from engine.auth import (
     AuthError,
     create_session,
@@ -48,6 +48,7 @@ SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "86400"))
 RESET_TOKEN_TTL_SECONDS = int(os.environ.get("RESET_TOKEN_TTL_SECONDS", "3600"))
 VERIFY_CODE_TTL_SECONDS = int(os.environ.get("VERIFY_CODE_TTL_SECONDS", "600"))
 RESET_LINK_BASE = os.environ.get("RESET_LINK_BASE", "http://localhost:5173")
+ADMIN_RESET_TOKEN = os.environ.get("ADMIN_RESET_TOKEN", "")
 COOKIE_NAME = "session_token"
 CORS_ORIGINS = [
     origin.strip()
@@ -106,6 +107,11 @@ class ResetPasswordRequest(BaseModel):
 class VerifyEmailRequest(BaseModel):
     email: str
     code: str
+
+
+class AdminResetRequest(BaseModel):
+    token: str
+    mode: str = "auth"
 
 
 @app.on_event("startup")
@@ -321,3 +327,20 @@ def auth_verify_email(
     token = sign_session(session["session_id"], AUTH_SECRET)
     _set_session_cookie(response, token)
     return {"username": user["username"]}
+
+
+@app.post("/admin/reset")
+def admin_reset(payload: AdminResetRequest) -> dict:
+    if not ADMIN_RESET_TOKEN or payload.token != ADMIN_RESET_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    mode = payload.mode.lower()
+    if mode == "auth":
+        reset_auth_data(DB_PATH)
+    elif mode == "learning":
+        reset_learning_data(DB_PATH)
+    elif mode == "all":
+        reset_learning_data(DB_PATH)
+        reset_auth_data(DB_PATH)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid mode")
+    return {"success": True, "mode": mode}
