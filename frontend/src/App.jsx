@@ -222,255 +222,275 @@ export default function App() {
     }
   };
 
+  const authTitle = {
+    login: "Welcome back",
+    signup: "Create account",
+    forgot: "Reset password",
+    reset: "Set new password",
+    verify: "Verify email"
+  }[authMode];
+
+  const authSubtitle = {
+    login: "Enter your credentials to access your account",
+    signup: "Create your account to get started",
+    forgot: "We’ll send a reset link to your email",
+    reset: "Choose a new password for your account",
+    verify: "Enter the code sent to your email"
+  }[authMode];
+
   return (
-    <div>
-      <header>
-        <h1>Guided Learning Flow Engine</h1>
-        {authUser ? (
+    <div className="app">
+      {authUser && (
+        <header className="app-header">
+          <h1 className="app-title">Guided Learning Flow Engine</h1>
           <div>
             Logged in as {authUser.username}
             <button onClick={handleLogout}>Logout</button>
           </div>
-        ) : (
-          <div>Not logged in</div>
-        )}
-      </header>
+        </header>
+      )}
 
-      {error && <div>Error: {error}</div>}
-      {authMessage && <div>{authMessage}</div>}
+      <main className={authUser ? "app-main" : "auth-main"}>
+        {!authUser && (
+          <div className="auth-card">
+            <h2 className="auth-title">{authTitle}</h2>
+            <p className="auth-subtitle">{authSubtitle}</p>
 
-      {!authUser &&
-        authMode !== "forgot" &&
-        authMode !== "reset" &&
-        authMode !== "verify" && (
-        <section>
-          <h2>{authMode === "signup" ? "Sign Up" : "Login"}</h2>
-          <form onSubmit={handleAuthSubmit}>
-            {authMode === "signup" && (
-              <div>
-                <label>
-                  Email:
+            {error && <div className="auth-error">Error: {error}</div>}
+            {authMessage && <div className="auth-message">{authMessage}</div>}
+
+            {authMode === "forgot" && (
+              <form onSubmit={handleForgotSubmit}>
+                <div className="auth-field">
+                  <label className="auth-label">Email</label>
                   <input
+                    className="auth-input"
                     type="email"
                     value={authEmail}
                     onChange={(event) => setAuthEmail(event.target.value)}
+                    placeholder="name@example.com"
                     required
                   />
-                </label>
-              </div>
+                </div>
+                <button className="auth-button" type="submit">
+                  Send reset link
+                </button>
+                <div className="auth-footer">
+                  <button type="button" onClick={() => setAuthMode("login")}>
+                    Back to login
+                  </button>
+                </div>
+              </form>
             )}
-            {authMode === "signup" && (
-              <div>
-                <label>
-                  Password:
+
+            {authMode === "reset" && (
+              <form onSubmit={handleResetSubmit}>
+                <div className="auth-field">
+                  <label className="auth-label">Reset token</label>
                   <input
+                    className="auth-input"
+                    type="text"
+                    value={resetToken}
+                    onChange={(event) => setResetToken(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="auth-field">
+                  <label className="auth-label">New password</label>
+                  <input
+                    className="auth-input"
+                    type="password"
+                    value={resetPasswordValue}
+                    onChange={(event) => setResetPasswordValue(event.target.value)}
+                    required
+                  />
+                </div>
+                <button className="auth-button" type="submit">
+                  Update password
+                </button>
+                <div className="auth-footer">
+                  <button type="button" onClick={() => setAuthMode("login")}>
+                    Back to login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {authMode === "verify" && (
+              <form onSubmit={handleVerifySubmit}>
+                <div className="auth-field">
+                  <label className="auth-label">Email</label>
+                  <input
+                    className="auth-input"
+                    type="email"
+                    value={authEmail}
+                    onChange={(event) => setAuthEmail(event.target.value)}
+                    placeholder="name@example.com"
+                    required
+                  />
+                </div>
+                <div className="auth-field">
+                  <label className="auth-label">Verification code</label>
+                  <input
+                    className="auth-input"
+                    type="text"
+                    value={verifyCode}
+                    onChange={(event) => setVerifyCode(event.target.value)}
+                    required
+                  />
+                </div>
+                <button className="auth-button" type="submit">
+                  Verify
+                </button>
+                <div className="auth-footer">
+                  <button type="button" onClick={() => setAuthMode("login")}>
+                    Back to login
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {(authMode === "login" || authMode === "signup") && (
+              <form onSubmit={handleAuthSubmit}>
+                {authMode === "signup" && (
+                  <div className="auth-field">
+                    <label className="auth-label">Email</label>
+                    <input
+                      className="auth-input"
+                      type="email"
+                      value={authEmail}
+                      onChange={(event) => setAuthEmail(event.target.value)}
+                      placeholder="name@example.com"
+                      required
+                    />
+                  </div>
+                )}
+                <div className="auth-field">
+                  <label className="auth-label">Username</label>
+                  <input
+                    className="auth-input"
+                    type="text"
+                    value={authUsername}
+                    onChange={(event) => setAuthUsername(event.target.value)}
+                    placeholder="username"
+                    required
+                  />
+                </div>
+                <div className="auth-field">
+                  <label className="auth-label">Password</label>
+                  <input
+                    className="auth-input"
                     type="password"
                     value={authPassword}
                     onChange={(event) => setAuthPassword(event.target.value)}
+                    placeholder="Enter your password"
                     required
                   />
-                </label>
-              </div>
+                </div>
+                {authMode === "signup" && (
+                  <div className="auth-field">
+                    <label className="auth-label">Confirm password</label>
+                    <input
+                      className="auth-input"
+                      type="password"
+                      value={authConfirmPassword}
+                      onChange={(event) => setAuthConfirmPassword(event.target.value)}
+                      required
+                    />
+                  </div>
+                )}
+                {authMode === "login" && (
+                  <div className="auth-actions">
+                    <button
+                      className="auth-link"
+                      type="button"
+                      onClick={() => setAuthMode("forgot")}
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
+                <button className="auth-button" type="submit">
+                  {authMode === "signup" ? "Sign up" : "Sign in"}
+                </button>
+                <div className="auth-footer">
+                  {authMode === "signup"
+                    ? "Already have an account?"
+                    : "Don't have an account?"}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAuthMode(authMode === "signup" ? "login" : "signup")
+                    }
+                  >
+                    {authMode === "signup" ? "Sign in" : "Sign up"}
+                  </button>
+                </div>
+              </form>
             )}
-            {authMode === "signup" && (
-              <div>
-                <label>
-                  Confirm Password:
-                  <input
-                    type="password"
-                    value={authConfirmPassword}
-                    onChange={(event) => setAuthConfirmPassword(event.target.value)}
-                    required
-                  />
-                </label>
-              </div>
-            )}
-            <div>
-              <label>
-                Username:
-                <input
-                  type="text"
-                  value={authUsername}
-                  onChange={(event) => setAuthUsername(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            {authMode !== "signup" && (
-              <div>
-                <label>
-                  Password:
-                  <input
-                    type="password"
-                    value={authPassword}
-                    onChange={(event) => setAuthPassword(event.target.value)}
-                    required
-                  />
-                </label>
-              </div>
-            )}
-            <button type="submit">
-              {authMode === "signup" ? "Create Account" : "Login"}
-            </button>
-          </form>
-          <button
-            onClick={() =>
-              setAuthMode(authMode === "signup" ? "login" : "signup")
-            }
-          >
-            {authMode === "signup"
-              ? "Have an account? Login"
-              : "Need an account? Sign up"}
-          </button>
-          <button onClick={() => setAuthMode("forgot")}>Forgot password?</button>
-        </section>
-      )}
-
-      {!authUser && authMode === "forgot" && (
-        <section>
-          <h2>Reset Password</h2>
-          <form onSubmit={handleForgotSubmit}>
-            <div>
-              <label>
-                Email:
-                <input
-                  type="email"
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <button type="submit">Send Reset Link</button>
-          </form>
-          <button onClick={() => setAuthMode("login")}>Back to login</button>
-        </section>
-      )}
-
-      {!authUser && authMode === "reset" && (
-        <section>
-          <h2>Set New Password</h2>
-          <form onSubmit={handleResetSubmit}>
-            <div>
-              <label>
-                Reset Token:
-                <input
-                  type="text"
-                  value={resetToken}
-                  onChange={(event) => setResetToken(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                New Password:
-                <input
-                  type="password"
-                  value={resetPasswordValue}
-                  onChange={(event) => setResetPasswordValue(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <button type="submit">Update Password</button>
-          </form>
-          <button onClick={() => setAuthMode("login")}>Back to login</button>
-        </section>
-      )}
-
-      {!authUser && authMode === "verify" && (
-        <section>
-          <h2>Verify Email</h2>
-          <form onSubmit={handleVerifySubmit}>
-            <div>
-              <label>
-                Email:
-                <input
-                  type="email"
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div>
-              <label>
-                Verification Code:
-                <input
-                  type="text"
-                  value={verifyCode}
-                  onChange={(event) => setVerifyCode(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <button type="submit">Verify</button>
-          </form>
-          <button onClick={() => setAuthMode("login")}>Back to login</button>
-        </section>
-      )}
-
-      {authUser && (
-        <section>
-          <h2>Student Runner</h2>
-          <div>
-            <label>
-              Flow:
-              <select
-                value={selectedFlowId}
-                onChange={(event) => setSelectedFlowId(event.target.value)}
-              >
-                {flowOptions}
-              </select>
-            </label>
           </div>
-          <div>
-            <label>
-              Student ID:
-              <input
-                type="text"
-                value={studentId}
-                onChange={(event) => setStudentId(event.target.value)}
-                disabled
-              />
-            </label>
-          </div>
-          <button onClick={handleStart}>Start Session</button>
+        )}
 
-          {activeFlow && (
+        {authUser && (
+          <section>
+            <h2>Student Runner</h2>
             <div>
-              <strong>{activeFlow.title}</strong>
-              <div>{activeFlow.statement}</div>
+              <label>
+                Flow:
+                <select
+                  value={selectedFlowId}
+                  onChange={(event) => setSelectedFlowId(event.target.value)}
+                >
+                  {flowOptions}
+                </select>
+              </label>
             </div>
-          )}
-
-          {currentStep && (
             <div>
-              {currentStep.type === "MC" ? (
-                <MCStep
-                  step={currentStep}
-                  onAnswer={(value) => handleSubmit(value, false)}
-                  onSkip={() => handleSubmit("", true)}
+              <label>
+                Student ID:
+                <input
+                  type="text"
+                  value={studentId}
+                  onChange={(event) => setStudentId(event.target.value)}
+                  disabled
                 />
-              ) : (
-                <SAStep
-                  step={currentStep}
-                  onAnswer={(value) => handleSubmit(value, false)}
-                  onSkip={() => handleSubmit("", true)}
-                />
-              )}
+              </label>
             </div>
-          )}
+            <button onClick={handleStart}>Start Session</button>
 
-          {!currentStep && sessionId && (
-            <div>Session completed. Start a new session to try again.</div>
-          )}
+            {activeFlow && (
+              <div>
+                <strong>{activeFlow.title}</strong>
+                <div>{activeFlow.statement}</div>
+              </div>
+            )}
 
-          <Feedback result={result} />
-        </section>
-      )}
+            {currentStep && (
+              <div>
+                {currentStep.type === "MC" ? (
+                  <MCStep
+                    step={currentStep}
+                    onAnswer={(value) => handleSubmit(value, false)}
+                    onSkip={() => handleSubmit("", true)}
+                  />
+                ) : (
+                  <SAStep
+                    step={currentStep}
+                    onAnswer={(value) => handleSubmit(value, false)}
+                    onSkip={() => handleSubmit("", true)}
+                  />
+                )}
+              </div>
+            )}
 
+            {!currentStep && sessionId && (
+              <div>Session completed. Start a new session to try again.</div>
+            )}
+
+            <Feedback result={result} />
+          </section>
+        )}
+      </main>
     </div>
   );
 }
