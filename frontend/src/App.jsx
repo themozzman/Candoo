@@ -21,6 +21,7 @@ export default function App() {
   const [studentId, setStudentId] = useState("student-1");
   const [authUser, setAuthUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [viewMode, setViewMode] = useState("catalog");
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -66,6 +67,7 @@ export default function App() {
       .then((data) => {
         setAuthUser(data);
         setStudentId(data.username);
+        setViewMode("catalog");
       })
       .catch(() => {
         setAuthUser(null);
@@ -165,6 +167,7 @@ export default function App() {
         const data = await login(authUsername, authPassword);
         setAuthUser(data);
         setStudentId(data.username);
+        setViewMode("catalog");
         setAuthPassword("");
       }
     } catch (err) {
@@ -181,6 +184,7 @@ export default function App() {
       setError(err.message);
     } finally {
       setAuthUser(null);
+      setViewMode("catalog");
       resetSessionView();
     }
   };
@@ -220,10 +224,34 @@ export default function App() {
       const data = await verifyEmail(authEmail, verifyCode);
       setAuthUser(data);
       setStudentId(data.username);
+      setViewMode("catalog");
       setVerifyCode("");
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const courseDescription = (flow) => {
+    if (!flow) {
+      return "";
+    }
+    const parts = [];
+    if (flow.topic) {
+      parts.push(flow.topic);
+    }
+    if (flow.statement) {
+      parts.push(flow.statement);
+    }
+    const combined = parts.join(" • ");
+    if (combined.length > 140) {
+      return `${combined.slice(0, 137)}...`;
+    }
+    return combined;
+  };
+
+  const handleCourseSelect = (flowId) => {
+    setSelectedFlowId(flowId);
+    setViewMode("runner");
   };
 
   const authTitle = {
@@ -448,7 +476,37 @@ export default function App() {
           </div>
         )}
 
-        {authChecked && authUser && (
+        {authChecked && authUser && viewMode === "catalog" && (
+          <section className="course-catalog">
+            <div className="course-header">
+              <div>
+                <h2 className="course-title">Select Your Course</h2>
+                <p className="course-subtitle">
+                  Choose the course you would like to enroll in.
+                </p>
+              </div>
+            </div>
+            <div className="course-grid">
+              {flows.map((flow) => (
+                <button
+                  key={flow.id}
+                  type="button"
+                  className="course-card"
+                  onClick={() => handleCourseSelect(flow.id)}
+                >
+                  <div className="course-icon">📘</div>
+                  <div className="course-name">{flow.title}</div>
+                  {flow.topic && <div className="course-topic">{flow.topic}</div>}
+                  <div className="course-description">
+                    {courseDescription(flow)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {authChecked && authUser && viewMode === "runner" && (
           <section className="runner">
             <div className="runner-header">
               <div>
@@ -457,6 +515,13 @@ export default function App() {
                   Choose a flow, start a session, and answer each step.
                 </p>
               </div>
+              <button
+                className="button-ghost"
+                type="button"
+                onClick={() => setViewMode("catalog")}
+              >
+                Back to courses
+              </button>
             </div>
 
             <div className="runner-grid">
