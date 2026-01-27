@@ -6,12 +6,16 @@ export default function Feedback({ result }) {
   }
 
   return (
-    <div>
-      <div>{result.feedback}</div>
+    <div className={`feedback ${result.correct ? "feedback-good" : "feedback-bad"}`}>
+      <div className="feedback-text">{result.feedback}</div>
       {result.reveal && result.correctAnswer && (
-        <div>Correct answer: {result.correctAnswer}</div>
+        <div className="feedback-answer">
+          Correct answer: {result.correctAnswer}
+        </div>
       )}
-      <div>{result.correct ? "Correct" : "Try again"}</div>
+      <div className="feedback-status">
+        {result.correct ? "Correct" : "Try again"}
+      </div>
     </div>
   );
 }

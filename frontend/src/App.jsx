@@ -242,10 +242,17 @@ export default function App() {
     <div className="app">
       {authUser && (
         <header className="app-header">
-          <h1 className="app-title">Guided Learning Flow Engine</h1>
           <div>
-            Logged in as {authUser.username}
-            <button onClick={handleLogout}>Logout</button>
+            <h1 className="app-title">Guided Learning Flow Engine</h1>
+            <p className="app-subtitle">
+              Guided practice with instant feedback and step tracking.
+            </p>
+          </div>
+          <div className="user-chip">
+            <span className="user-name">{authUser.username}</span>
+            <button className="button-ghost" onClick={handleLogout}>
+              Log out
+            </button>
           </div>
         </header>
       )}
@@ -432,42 +439,63 @@ export default function App() {
         )}
 
         {authUser && (
-          <section>
-            <h2>Student Runner</h2>
-            <div>
-              <label>
-                Flow:
-                <select
-                  value={selectedFlowId}
-                  onChange={(event) => setSelectedFlowId(event.target.value)}
-                >
-                  {flowOptions}
-                </select>
-              </label>
-            </div>
-            <div>
-              <label>
-                Student ID:
-                <input
-                  type="text"
-                  value={studentId}
-                  onChange={(event) => setStudentId(event.target.value)}
-                  disabled
-                />
-              </label>
-            </div>
-            <button onClick={handleStart}>Start Session</button>
-
-            {activeFlow && (
+          <section className="runner">
+            <div className="runner-header">
               <div>
-                <strong>{activeFlow.title}</strong>
-                <div>{activeFlow.statement}</div>
+                <h2 className="runner-title">Student Runner</h2>
+                <p className="runner-subtitle">
+                  Choose a flow, start a session, and answer each step.
+                </p>
               </div>
-            )}
+            </div>
 
-            {currentStep && (
-              <div>
-                {currentStep.type === "MC" ? (
+            <div className="runner-grid">
+              <div className="card">
+                <h3 className="card-title">Session setup</h3>
+                <div className="form-field">
+                  <label className="form-label">Flow</label>
+                  <select
+                    className="form-select"
+                    value={selectedFlowId}
+                    onChange={(event) => setSelectedFlowId(event.target.value)}
+                  >
+                    {flowOptions}
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label className="form-label">Student ID</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={studentId}
+                    onChange={(event) => setStudentId(event.target.value)}
+                    disabled
+                  />
+                </div>
+                <button className="button-primary" onClick={handleStart}>
+                  Start session
+                </button>
+              </div>
+
+              <div className="card">
+                <h3 className="card-title">Current flow</h3>
+                {activeFlow ? (
+                  <div className="flow-summary">
+                    <div className="flow-title">{activeFlow.title}</div>
+                    <div className="flow-statement">{activeFlow.statement}</div>
+                  </div>
+                ) : (
+                  <div className="flow-empty">
+                    Start a session to see the flow details here.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card runner-step">
+              <h3 className="card-title">Current step</h3>
+              {currentStep ? (
+                currentStep.type === "MC" ? (
                   <MCStep
                     step={currentStep}
                     onAnswer={(value) => handleSubmit(value, false)}
@@ -479,15 +507,18 @@ export default function App() {
                     onAnswer={(value) => handleSubmit(value, false)}
                     onSkip={() => handleSubmit("", true)}
                   />
-                )}
-              </div>
-            )}
-
-            {!currentStep && sessionId && (
-              <div>Session completed. Start a new session to try again.</div>
-            )}
-
-            <Feedback result={result} />
+                )
+              ) : sessionId ? (
+                <div className="session-complete">
+                  Session completed. Start a new session to try again.
+                </div>
+              ) : (
+                <div className="session-empty">
+                  Start a session to load the first question.
+                </div>
+              )}
+              <Feedback result={result} />
+            </div>
           </section>
         )}
       </main>

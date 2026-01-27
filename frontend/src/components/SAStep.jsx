@@ -9,17 +9,22 @@ export default function SAStep({ step, onAnswer, onSkip }) {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>{step.prompt}</div>
+    <form className="step" onSubmit={handleSubmit}>
+      <div className="step-prompt">{step.prompt}</div>
       <input
+        className="step-input"
         type="text"
         value={value}
         onChange={(event) => setValue(event.target.value)}
       />
-      <button type="submit">Submit</button>
-      <button type="button" onClick={onSkip}>
-        Skip
-      </button>
+      <div className="step-actions">
+        <button className="button-primary" type="submit">
+          Submit
+        </button>
+        <button className="button-secondary" type="button" onClick={onSkip}>
+          Skip
+        </button>
+      </div>
     </form>
   );
 }
