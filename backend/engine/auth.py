@@ -43,14 +43,14 @@ def create_user(db_path: str, username: str, password: str, email: str) -> dict:
     try:
         conn.execute(
             """
-            INSERT INTO users (username, email, password_hash, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (username, email, password_hash, created_at, verified_at)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (username, email, password_hash, now),
+            (username, email, password_hash, now, None),
         )
         conn.commit()
         user = conn.execute(
-            "SELECT id, username, email, created_at FROM users WHERE username = ?",
+            "SELECT id, username, email, created_at, verified_at FROM users WHERE username = ?",
             (username,),
         ).fetchone()
         return {
@@ -58,6 +58,7 @@ def create_user(db_path: str, username: str, password: str, email: str) -> dict:
             "username": user[1],
             "email": user[2],
             "created_at": user[3],
+            "verified_at": user[4],
         }
     except sqlite3.IntegrityError as exc:
         raise AuthError("Username or email already exists") from exc
@@ -69,7 +70,10 @@ def get_user_by_username(db_path: str, username: str) -> dict | None:
     conn = sqlite3.connect(db_path)
     try:
         row = conn.execute(
-            "SELECT id, username, email, password_hash, created_at FROM users WHERE username = ?",
+            """
+            SELECT id, username, email, password_hash, created_at, verified_at
+            FROM users WHERE username = ?
+            """,
             (username,),
         ).fetchone()
         if not row:
@@ -80,6 +84,7 @@ def get_user_by_username(db_path: str, username: str) -> dict | None:
             "email": row[2],
             "password_hash": row[3],
             "created_at": row[4],
+            "verified_at": row[5],
         }
     finally:
         conn.close()
@@ -89,7 +94,10 @@ def get_user_by_email(db_path: str, email: str) -> dict | None:
     conn = sqlite3.connect(db_path)
     try:
         row = conn.execute(
-            "SELECT id, username, email, password_hash, created_at FROM users WHERE email = ?",
+            """
+            SELECT id, username, email, password_hash, created_at, verified_at
+            FROM users WHERE email = ?
+            """,
             (email,),
         ).fetchone()
         if not row:
@@ -100,6 +108,7 @@ def get_user_by_email(db_path: str, email: str) -> dict | None:
             "email": row[2],
             "password_hash": row[3],
             "created_at": row[4],
+            "verified_at": row[5],
         }
     finally:
         conn.close()
@@ -177,6 +186,72 @@ def update_user_password(db_path: str, user_id: int, password: str) -> None:
         conn.close()
 
 
+def create_email_verification(db_path: str, user_id: int, ttl_seconds: int) -> str:
+    code = "".join(str(secrets.randbelow(10)) for _ in range(6))
+    code_hash = sha256(code.encode("utf-8")).hexdigest()
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(seconds=ttl_seconds)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO email_verifications (user_id, code_hash, created_at, expires_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, code_hash, now.isoformat(), expires_at.isoformat()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return code
+
+
+def verify_email_code(db_path: str, user_id: int, code: str) -> bool:
+    if not code:
+        return False
+    code_hash = sha256(code.encode("utf-8")).hexdigest()
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, expires_at, used_at
+            FROM email_verifications
+            WHERE user_id = ? AND code_hash = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (user_id, code_hash),
+        ).fetchone()
+        if not row:
+            return False
+        if row[2] is not None:
+            return False
+        expires_at = datetime.fromisoformat(row[1])
+        if expires_at < datetime.now(timezone.utc):
+            return False
+        conn.execute(
+            "UPDATE email_verifications SET used_at = ? WHERE id = ?",
+            (_now_iso(), row[0]),
+        )
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+def mark_user_verified(db_path: str, user_id: int) -> None:
+    now = _now_iso()
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            "UPDATE users SET verified_at = ? WHERE id = ?",
+            (now, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def create_session(db_path: str, user_id: int, ttl_seconds: int) -> dict:
     session_id = str(uuid4())
     now = datetime.now(timezone.utc)
@@ -243,6 +318,26 @@ def verify_signed_session(token: str, secret: str) -> str | None:
 
 
 def send_password_reset_email(recipient: str, reset_link: str) -> None:
+    _send_email(
+        recipient,
+        "Reset your password",
+        "Use the link below to reset your password:\n\n"
+        f"{reset_link}\n\n"
+        "If you did not request this, you can ignore this email.",
+    )
+
+
+def send_verification_email(recipient: str, code: str) -> None:
+    _send_email(
+        recipient,
+        "Verify your account",
+        "Use the code below to verify your account:\n\n"
+        f"{code}\n\n"
+        "If you did not request this, you can ignore this email.",
+    )
+
+
+def _send_email(recipient: str, subject: str, text: str) -> None:
     host = os.environ.get("SMTP_HOST")
     port = int(os.environ.get("SMTP_PORT", "587"))
     username = os.environ.get("SMTP_USERNAME")
@@ -256,12 +351,8 @@ def send_password_reset_email(recipient: str, reset_link: str) -> None:
             payload = {
                 "from": sender,
                 "to": [recipient],
-                "subject": "Reset your password",
-                "text": (
-                    "Use the link below to reset your password:\n\n"
-                    f"{reset_link}\n\n"
-                    "If you did not request this, you can ignore this email."
-                ),
+                "subject": subject,
+                "text": text,
             }
             data = json.dumps(payload).encode("utf-8")
             request = urllib.request.Request(
@@ -284,14 +375,10 @@ def send_password_reset_email(recipient: str, reset_link: str) -> None:
         return
 
     message = EmailMessage()
-    message["Subject"] = "Reset your password"
+    message["Subject"] = subject
     message["From"] = sender
     message["To"] = recipient
-    message.set_content(
-        "Use the link below to reset your password:\n\n"
-        f"{reset_link}\n\n"
-        "If you did not request this, you can ignore this email."
-    )
+    message.set_content(text)
 
     try:
         if port == 465:

@@ -11,16 +11,20 @@ from engine.auth import (
     AuthError,
     create_session,
     create_user,
+    create_email_verification,
     create_password_reset,
     delete_session,
     get_user_by_email,
     get_user_by_session,
     get_user_by_username,
+    mark_user_verified,
     mark_password_reset_used,
+    send_verification_email,
     send_password_reset_email,
     sign_session,
     update_user_password,
     verify_password,
+    verify_email_code,
     verify_password_reset,
     verify_signed_session,
 )
@@ -42,6 +46,7 @@ REPORTS_PATH = os.environ.get("REPORTS_PATH", str(ROOT_DIR / "backend" / "report
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "dev-secret")
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "86400"))
 RESET_TOKEN_TTL_SECONDS = int(os.environ.get("RESET_TOKEN_TTL_SECONDS", "3600"))
+VERIFY_CODE_TTL_SECONDS = int(os.environ.get("VERIFY_CODE_TTL_SECONDS", "600"))
 RESET_LINK_BASE = os.environ.get("RESET_LINK_BASE", "http://localhost:5173")
 COOKIE_NAME = "session_token"
 CORS_ORIGINS = [
@@ -81,6 +86,7 @@ class SignupRequest(BaseModel):
     username: str
     password: str
     email: str
+    confirm_password: str
 
 
 class LoginRequest(BaseModel):
@@ -95,6 +101,11 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+
+class VerifyEmailRequest(BaseModel):
+    email: str
+    code: str
 
 
 @app.on_event("startup")
@@ -219,15 +230,16 @@ def teacher_report(flow_id: str, user: dict = Depends(get_current_user)) -> dict
 @app.post("/auth/signup")
 def auth_signup(payload: SignupRequest, response: Response, request: Request) -> dict:
     _rate_limit(request, "signup")
+    if payload.password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
     try:
         email = payload.email.strip().lower()
         user = create_user(DB_PATH, payload.username, payload.password, email)
     except AuthError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
-    token = sign_session(session["session_id"], AUTH_SECRET)
-    _set_session_cookie(response, token)
-    return {"username": user["username"]}
+    code = create_email_verification(DB_PATH, user["id"], VERIFY_CODE_TTL_SECONDS)
+    send_verification_email(email, code)
+    return {"success": True, "needs_verification": True}
 
 
 @app.post("/auth/login")
@@ -236,6 +248,8 @@ def auth_login(payload: LoginRequest, response: Response, request: Request) -> d
     user = get_user_by_username(DB_PATH, payload.username)
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.get("verified_at"):
+        raise HTTPException(status_code=403, detail="Email not verified")
     session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
     token = sign_session(session["session_id"], AUTH_SECRET)
     _set_session_cookie(response, token)
@@ -282,3 +296,28 @@ def auth_reset_password(payload: ResetPasswordRequest, request: Request) -> dict
     update_user_password(DB_PATH, reset["user_id"], payload.new_password)
     mark_password_reset_used(DB_PATH, reset["id"])
     return {"success": True}
+
+
+@app.post("/auth/verify")
+def auth_verify_email(
+    payload: VerifyEmailRequest,
+    response: Response,
+    request: Request,
+) -> dict:
+    _rate_limit(request, "verify")
+    email = payload.email.strip().lower()
+    user = get_user_by_email(DB_PATH, email)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    if user.get("verified_at"):
+        session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
+        token = sign_session(session["session_id"], AUTH_SECRET)
+        _set_session_cookie(response, token)
+        return {"username": user["username"]}
+    if not verify_email_code(DB_PATH, user["id"], payload.code):
+        raise HTTPException(status_code=400, detail="Invalid verification code")
+    mark_user_verified(DB_PATH, user["id"])
+    session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
+    token = sign_session(session["session_id"], AUTH_SECRET)
+    _set_session_cookie(response, token)
+    return {"username": user["username"]}

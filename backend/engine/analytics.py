@@ -43,7 +43,8 @@ def init_db(db_path: str) -> None:
                 username TEXT NOT NULL UNIQUE,
                 email TEXT UNIQUE,
                 password_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                verified_at TEXT
             )
             """
         )
@@ -73,6 +74,19 @@ def init_db(db_path: str) -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS email_verifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                code_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id
             ON auth_sessions(user_id)
             """
@@ -91,6 +105,18 @@ def init_db(db_path: str) -> None:
         )
         conn.execute(
             """
+            CREATE INDEX IF NOT EXISTS idx_email_verifications_code_hash
+            ON email_verifications(code_hash)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_email_verifications_user_id
+            ON email_verifications(user_id)
+            """
+        )
+        conn.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_attempts_flow_step
             ON attempts(flow_id, step_id)
             """
@@ -105,6 +131,8 @@ def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
     columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
     if "email" not in columns:
         conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if "verified_at" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email

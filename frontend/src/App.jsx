@@ -8,6 +8,7 @@ import {
   requestPasswordReset,
   resetPassword,
   signupWithEmail,
+  verifyEmail,
   startSession,
   submitAnswer
 } from "./api.js";
@@ -24,7 +25,9 @@ export default function App() {
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
+  const [verifyCode, setVerifyCode] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [sessionId, setSessionId] = useState(null);
@@ -148,14 +151,25 @@ export default function App() {
     setError("");
     setAuthMessage("");
     try {
-      const data =
-        authMode === "signup"
-          ? await signupWithEmail(authUsername, authEmail, authPassword)
-          : await login(authUsername, authPassword);
-      setAuthUser(data);
-      setStudentId(data.username);
-      setAuthPassword("");
-      setAuthEmail("");
+      if (authMode === "signup") {
+        const data = await signupWithEmail(
+          authUsername,
+          authEmail,
+          authPassword,
+          authConfirmPassword
+        );
+        if (data.needs_verification) {
+          setAuthMessage("Check your email for a verification code.");
+          setAuthMode("verify");
+        }
+        setAuthPassword("");
+        setAuthConfirmPassword("");
+      } else {
+        const data = await login(authUsername, authPassword);
+        setAuthUser(data);
+        setStudentId(data.username);
+        setAuthPassword("");
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -201,6 +215,20 @@ export default function App() {
     }
   };
 
+  const handleVerifySubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    setAuthMessage("");
+    try {
+      const data = await verifyEmail(authEmail, verifyCode);
+      setAuthUser(data);
+      setStudentId(data.username);
+      setVerifyCode("");
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const handleLoadReport = async () => {
     if (!reportFlowId) {
       return;
@@ -234,7 +262,10 @@ export default function App() {
       {error && <div>Error: {error}</div>}
       {authMessage && <div>{authMessage}</div>}
 
-      {!authUser && authMode !== "forgot" && authMode !== "reset" && (
+      {!authUser &&
+        authMode !== "forgot" &&
+        authMode !== "reset" &&
+        authMode !== "verify" && (
         <section>
           <h2>{authMode === "signup" ? "Sign Up" : "Login"}</h2>
           <form onSubmit={handleAuthSubmit}>
@@ -251,6 +282,32 @@ export default function App() {
                 </label>
               </div>
             )}
+            {authMode === "signup" && (
+              <div>
+                <label>
+                  Password:
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            )}
+            {authMode === "signup" && (
+              <div>
+                <label>
+                  Confirm Password:
+                  <input
+                    type="password"
+                    value={authConfirmPassword}
+                    onChange={(event) => setAuthConfirmPassword(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            )}
             <div>
               <label>
                 Username:
@@ -262,17 +319,19 @@ export default function App() {
                 />
               </label>
             </div>
-            <div>
-              <label>
-                Password:
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
+            {authMode !== "signup" && (
+              <div>
+                <label>
+                  Password:
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(event) => setAuthPassword(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+            )}
             <button type="submit">
               {authMode === "signup" ? "Create Account" : "Login"}
             </button>
@@ -338,6 +397,38 @@ export default function App() {
               </label>
             </div>
             <button type="submit">Update Password</button>
+          </form>
+          <button onClick={() => setAuthMode("login")}>Back to login</button>
+        </section>
+      )}
+
+      {!authUser && authMode === "verify" && (
+        <section>
+          <h2>Verify Email</h2>
+          <form onSubmit={handleVerifySubmit}>
+            <div>
+              <label>
+                Email:
+                <input
+                  type="email"
+                  value={authEmail}
+                  onChange={(event) => setAuthEmail(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <div>
+              <label>
+                Verification Code:
+                <input
+                  type="text"
+                  value={verifyCode}
+                  onChange={(event) => setVerifyCode(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <button type="submit">Verify</button>
           </form>
           <button onClick={() => setAuthMode("login")}>Back to login</button>
         </section>
