@@ -48,6 +48,27 @@ def _validate_flow(flow: dict, source: str) -> None:
     if flow["startStepId"] not in steps:
         raise FlowValidationError(f"{source}: startStepId not found in steps")
 
+    has_terminal = False
+    for step in steps.values():
+        next_branch = step.get("next", {})
+        if not isinstance(next_branch, dict):
+            continue
+        if all(next_branch.get(key) is None for key in ("correct", "wrong", "skip")):
+            has_terminal = True
+        for key in ("correct", "wrong", "skip"):
+            target = next_branch.get(key)
+            if target is None:
+                continue
+            if target not in steps:
+                raise FlowValidationError(
+                    f"{source}: step {step['id']} next.{key} references unknown step {target}"
+                )
+
+    if not has_terminal:
+        raise FlowValidationError(
+            f"{source}: flow must have at least one terminal step with null next values"
+        )
+
 
 def validate_flow(flow: dict, source: str = "api") -> None:
     _validate_flow(flow, source)

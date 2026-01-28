@@ -73,6 +73,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
         "- MC options must be full, meaningful answer strings (no single-letter placeholders like A/B/C/D).\n"
+        "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- Use the provided flow_id.\n\n"
         f"flow_id: {flow_id}\n"
