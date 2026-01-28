@@ -4,6 +4,7 @@ import {
   adminApproveSpec,
   adminGenerateSpec,
   fetchCourses,
+  fetchFlows,
   fetchMe,
   login,
   logout,
@@ -18,6 +19,7 @@ import Feedback from "./components/Feedback.jsx";
 
 export default function App() {
   const [courses, setCourses] = useState([]);
+  const [flows, setFlows] = useState([]);
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [selectedFlowId, setSelectedFlowId] = useState("");
   const [studentId, setStudentId] = useState("student-1");
@@ -71,11 +73,19 @@ export default function App() {
       .catch((err) => setError(err.message));
   };
 
+  const loadFlows = () => {
+    fetchFlows()
+      .then((data) => setFlows(data))
+      .catch((err) => setError(err.message));
+  };
+
   useEffect(() => {
     loadCourses(false);
+    loadFlows();
 
     const handleFocus = () => {
       loadCourses(true);
+      loadFlows();
     };
 
     window.addEventListener("focus", handleFocus);
@@ -126,6 +136,39 @@ export default function App() {
     () => courses.find((course) => course.id === selectedCourseId),
     [courses, selectedCourseId]
   );
+
+  const courseFlows = useMemo(() => {
+    if (!selectedCourseId) {
+      return [];
+    }
+    const activeId = selectedCourse?.active_flow_id;
+    return flows.filter((flow) => {
+      if (flow.id === activeId) {
+        return true;
+      }
+      return flow.id.startsWith(`${selectedCourseId}-`);
+    });
+  }, [flows, selectedCourseId, selectedCourse]);
+
+  useEffect(() => {
+    if (!selectedCourseId) {
+      return;
+    }
+    const activeId = selectedCourse?.active_flow_id || "";
+    const availableIds = new Set(courseFlows.map((flow) => flow.id));
+    if (selectedFlowId && availableIds.has(selectedFlowId)) {
+      return;
+    }
+    if (activeId && availableIds.has(activeId)) {
+      setSelectedFlowId(activeId);
+      return;
+    }
+    if (courseFlows.length > 0) {
+      setSelectedFlowId(courseFlows[0].id);
+    } else {
+      setSelectedFlowId("");
+    }
+  }, [courseFlows, selectedCourse, selectedCourseId, selectedFlowId]);
 
   const visibleCourses = useMemo(() => {
     if (isAdmin) {
@@ -592,12 +635,26 @@ export default function App() {
                 </div>
                 <div className="form-field">
                   <label className="form-label">Flow ID</label>
-                  <input
-                    className="form-input"
-                    type="text"
-                    value={selectedFlowId}
-                    disabled
-                  />
+                  {courseFlows.length > 1 ? (
+                    <select
+                      className="form-select"
+                      value={selectedFlowId}
+                      onChange={(event) => setSelectedFlowId(event.target.value)}
+                    >
+                      {courseFlows.map((flow) => (
+                        <option key={flow.id} value={flow.id}>
+                          {flow.title} ({flow.id})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="form-input"
+                      type="text"
+                      value={selectedFlowId}
+                      disabled
+                    />
+                  )}
                 </div>
                 <div className="form-field">
                   <label className="form-label">Student ID</label>
