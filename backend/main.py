@@ -302,7 +302,7 @@ def auth_login(payload: LoginRequest, response: Response, request: Request) -> d
     session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
     token = sign_session(session["session_id"], AUTH_SECRET)
     _set_session_cookie(response, token)
-    return {"username": user["username"]}
+    return {"username": user["username"], "email": user.get("email")}
 
 
 @app.post("/auth/logout")
@@ -317,7 +317,7 @@ def auth_logout(response: Response, request: Request) -> dict:
 
 @app.get("/auth/me")
 def auth_me(user: dict = Depends(get_current_user)) -> dict:
-    return {"username": user["username"]}
+    return {"username": user["username"], "email": user.get("email")}
 
 
 @app.post("/auth/forgot")

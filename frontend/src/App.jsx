@@ -50,6 +50,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
 
+  const adminEmails = ["andrestoussieh3@gmail.com"];
+  const isAdmin =
+    authUser?.email && adminEmails.includes(authUser.email.toLowerCase());
+
   const loadCourses = (preserveSelection = true) => {
     fetchCourses()
       .then((data) => {
@@ -94,6 +98,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isAdmin) {
+      setAdminOpen(false);
+    }
+  }, [isAdmin]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("reset_token");
     if (token) {
@@ -116,6 +126,13 @@ export default function App() {
     () => courses.find((course) => course.id === selectedCourseId),
     [courses, selectedCourseId]
   );
+
+  const visibleCourses = useMemo(() => {
+    if (isAdmin) {
+      return courses;
+    }
+    return courses.filter((course) => course.active_flow_id);
+  }, [courses, isAdmin]);
 
   const resetSessionView = () => {
     setSessionId(null);
@@ -191,6 +208,7 @@ export default function App() {
     } finally {
       setAuthUser(null);
       setViewMode("catalog");
+      setAdminOpen(false);
       resetSessionView();
     }
   };
@@ -299,13 +317,16 @@ export default function App() {
           </div>
           <div className="user-chip">
             <span className="user-name">{authUser.username}</span>
-            <button
-              className="button-ghost"
-              type="button"
-              onClick={() => setAdminOpen((prev) => !prev)}
-            >
-              {adminOpen ? "Close admin" : "Admin"}
-            </button>
+            {isAdmin && <span className="user-role">Admin</span>}
+            {isAdmin && (
+              <button
+                className="button-ghost"
+                type="button"
+                onClick={() => setAdminOpen((prev) => !prev)}
+              >
+                {adminOpen ? "Close admin" : "Admin"}
+              </button>
+            )}
             <button className="button-ghost" onClick={handleLogout}>
               Log out
             </button>
@@ -440,7 +461,7 @@ export default function App() {
               <div className="course-note">{catalogNotice}</div>
             )}
             <div className="course-grid">
-              {courses.map((course) => (
+              {visibleCourses.map((course) => (
                 <button
                   key={course.id}
                   type="button"
@@ -455,7 +476,10 @@ export default function App() {
                 </button>
               ))}
             </div>
-            {adminOpen && (
+            {!isAdmin && visibleCourses.length === 0 && (
+              <div className="course-note">No courses are available yet.</div>
+            )}
+            {isAdmin && adminOpen && (
               <div className="admin-panel">
                 <h3 className="card-title">Admin: Generate AI Flow</h3>
                 <form className="admin-form" onSubmit={handleAdminGenerateSpec}>

@@ -177,6 +177,15 @@ body {
   font-size: 14px;
 }
 
+.user-role {
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .button-primary,
 .button-secondary,
 .button-ghost {

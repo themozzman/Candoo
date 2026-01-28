@@ -295,7 +295,7 @@ def get_user_by_session(db_path: str, session_id: str) -> dict | None:
     try:
         row = conn.execute(
             """
-            SELECT users.id, users.username, auth_sessions.expires_at
+            SELECT users.id, users.username, users.email, auth_sessions.expires_at
             FROM auth_sessions
             JOIN users ON users.id = auth_sessions.user_id
             WHERE auth_sessions.session_id = ?
@@ -304,10 +304,10 @@ def get_user_by_session(db_path: str, session_id: str) -> dict | None:
         ).fetchone()
         if not row:
             return None
-        expires_at = datetime.fromisoformat(row[2])
+        expires_at = datetime.fromisoformat(row[3])
         if expires_at < datetime.now(timezone.utc):
             return None
-        return {"id": row[0], "username": row[1]}
+        return {"id": row[0], "username": row[1], "email": row[2]}
     finally:
         conn.close()
 
