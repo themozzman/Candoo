@@ -61,12 +61,6 @@ export function login(username, password) {
   });
 }
 
-export function signupWithEmail(username, email, password, confirmPassword) {
-  return request("/auth/signup", {
-    method: "POST",
-    body: JSON.stringify({ username, email, password, confirm_password: confirmPassword })
-  });
-}
 
 export function requestPasswordReset(email) {
   return request("/auth/forgot", {
@@ -82,12 +76,6 @@ export function resetPassword(token, newPassword) {
   });
 }
 
-export function verifyEmail(email, code) {
-  return request("/auth/verify", {
-    method: "POST",
-    body: JSON.stringify({ email, code })
-  });
-}
 
 export function logout() {
   return request("/auth/logout", { method: "POST" });

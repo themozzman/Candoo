@@ -31,6 +31,16 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_user(db_path: str, username: str, password: str, email: str) -> dict:
+    return _create_user(db_path, username, password, email, verified_at=None)
+
+
+def create_user_verified(db_path: str, username: str, password: str, email: str) -> dict:
+    return _create_user(db_path, username, password, email, verified_at=_now_iso())
+
+
+def _create_user(
+    db_path: str, username: str, password: str, email: str, verified_at: str | None
+) -> dict:
     if not username:
         raise AuthError("Username cannot be empty")
     if not email:
@@ -46,7 +56,7 @@ def create_user(db_path: str, username: str, password: str, email: str) -> dict:
             INSERT INTO users (username, email, password_hash, created_at, verified_at)
             VALUES (?, ?, ?, ?, ?)
             """,
-            (username, email, password_hash, now, None),
+            (username, email, password_hash, now, verified_at),
         )
         conn.commit()
         user = conn.execute(

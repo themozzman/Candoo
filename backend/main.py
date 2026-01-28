@@ -26,6 +26,7 @@ from engine.auth import (
     AuthError,
     create_session,
     create_user,
+    create_user_verified,
     create_email_verification,
     create_password_reset,
     delete_session,
@@ -149,6 +150,11 @@ class AdminFlowApproveRequest(BaseModel):
 
 class AdminEmailStatusRequest(BaseModel):
     token: str
+
+
+class AdminCreateUsersRequest(BaseModel):
+    token: str
+    users: list[dict]
 
 
 @app.on_event("startup")
@@ -282,17 +288,7 @@ def teacher_report(flow_id: str, user: dict = Depends(get_current_user)) -> dict
 
 @app.post("/auth/signup")
 def auth_signup(payload: SignupRequest, response: Response, request: Request) -> dict:
-    _rate_limit(request, "signup")
-    if payload.password != payload.confirm_password:
-        raise HTTPException(status_code=400, detail="Passwords do not match")
-    try:
-        email = payload.email.strip().lower()
-        user = create_user(DB_PATH, payload.username, payload.password, email)
-    except AuthError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    code = create_email_verification(DB_PATH, user["id"], VERIFY_CODE_TTL_SECONDS)
-    send_verification_email(email, code)
-    return {"success": True, "needs_verification": True}
+    raise HTTPException(status_code=403, detail="Signup is disabled")
 
 
 @app.post("/auth/login")
@@ -357,23 +353,7 @@ def auth_verify_email(
     response: Response,
     request: Request,
 ) -> dict:
-    _rate_limit(request, "verify")
-    email = payload.email.strip().lower()
-    user = get_user_by_email(DB_PATH, email)
-    if not user:
-        raise HTTPException(status_code=400, detail="Invalid verification code")
-    if user.get("verified_at"):
-        session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
-        token = sign_session(session["session_id"], AUTH_SECRET)
-        _set_session_cookie(response, token)
-        return {"username": user["username"]}
-    if not verify_email_code(DB_PATH, user["id"], payload.code):
-        raise HTTPException(status_code=400, detail="Invalid verification code")
-    mark_user_verified(DB_PATH, user["id"])
-    session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
-    token = sign_session(session["session_id"], AUTH_SECRET)
-    _set_session_cookie(response, token)
-    return {"username": user["username"]}
+    raise HTTPException(status_code=403, detail="Email verification is disabled")
 
 
 @app.post("/admin/reset")
@@ -461,3 +441,24 @@ def admin_email_status(payload: AdminEmailStatusRequest) -> dict:
         "smtp_host": host,
         "use_resend": bool(resend_key),
     }
+
+
+@app.post("/admin/users/bulk")
+def admin_create_users(payload: AdminCreateUsersRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    created = []
+    errors = []
+    for entry in payload.users:
+        username = (entry.get("username") or "").strip()
+        email = (entry.get("email") or "").strip().lower()
+        password = entry.get("password") or ""
+        if not username or not email or not password:
+            errors.append({"username": username, "email": email, "error": "Missing fields"})
+            continue
+        try:
+            user = create_user_verified(DB_PATH, username, password, email)
+            created.append({"username": user["username"], "email": user["email"]})
+        except AuthError as exc:
+            errors.append({"username": username, "email": email, "error": str(exc)})
+    return {"created": created, "errors": errors}

@@ -9,8 +9,6 @@ import {
   logout,
   requestPasswordReset,
   resetPassword,
-  signupWithEmail,
-  verifyEmail,
   startSession,
   submitAnswer
 } from "./api.js";
@@ -42,9 +40,7 @@ export default function App() {
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
   const [authMessage, setAuthMessage] = useState("");
-  const [verifyCode, setVerifyCode] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [sessionId, setSessionId] = useState(null);
@@ -175,26 +171,11 @@ export default function App() {
     setError("");
     setAuthMessage("");
     try {
-      if (authMode === "signup") {
-        const data = await signupWithEmail(
-          authUsername,
-          authEmail,
-          authPassword,
-          authConfirmPassword
-        );
-        if (data.needs_verification) {
-          setAuthMessage("Check your email for a verification code.");
-          setAuthMode("verify");
-        }
-        setAuthPassword("");
-        setAuthConfirmPassword("");
-      } else {
-        const data = await login(authUsername, authPassword);
-        setAuthUser(data);
-        setStudentId(data.username);
-        setViewMode("catalog");
-        setAuthPassword("");
-      }
+      const data = await login(authUsername, authPassword);
+      setAuthUser(data);
+      setStudentId(data.username);
+      setViewMode("catalog");
+      setAuthPassword("");
     } catch (err) {
       setError(err.message);
     }
@@ -241,20 +222,6 @@ export default function App() {
     }
   };
 
-  const handleVerifySubmit = async (event) => {
-    event.preventDefault();
-    setError("");
-    setAuthMessage("");
-    try {
-      const data = await verifyEmail(authEmail, verifyCode);
-      setAuthUser(data);
-      setStudentId(data.username);
-      setViewMode("catalog");
-      setVerifyCode("");
-    } catch (err) {
-      setError(err.message);
-    }
-  };
 
   const handleCourseSelect = (course) => {
     if (!course.active_flow_id) {
@@ -310,18 +277,14 @@ export default function App() {
 
   const authTitle = {
     login: "Welcome back",
-    signup: "Create account",
     forgot: "Reset password",
-    reset: "Set new password",
-    verify: "Verify email"
+    reset: "Set new password"
   }[authMode];
 
   const authSubtitle = {
     login: "Enter your credentials to access your account",
-    signup: "Create your account to get started",
     forgot: "We’ll send a reset link to your email",
-    reset: "Choose a new password for your account",
-    verify: "Enter the code sent to your email"
+    reset: "Choose a new password for your account"
   }[authMode];
 
   return (
@@ -422,55 +385,8 @@ export default function App() {
               </form>
             )}
 
-            {authMode === "verify" && (
-              <form onSubmit={handleVerifySubmit}>
-                <div className="auth-field">
-                  <label className="auth-label">Email</label>
-                  <input
-                    className="auth-input"
-                    type="email"
-                    value={authEmail}
-                    onChange={(event) => setAuthEmail(event.target.value)}
-                    placeholder="name@example.com"
-                    required
-                  />
-                </div>
-                <div className="auth-field">
-                  <label className="auth-label">Verification code</label>
-                  <input
-                    className="auth-input"
-                    type="text"
-                    value={verifyCode}
-                    onChange={(event) => setVerifyCode(event.target.value)}
-                    required
-                  />
-                </div>
-                <button className="auth-button" type="submit">
-                  Verify
-                </button>
-                <div className="auth-footer">
-                  <button type="button" onClick={() => setAuthMode("login")}>
-                    Back to login
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {(authMode === "login" || authMode === "signup") && (
+            {authMode === "login" && (
               <form onSubmit={handleAuthSubmit}>
-                {authMode === "signup" && (
-                  <div className="auth-field">
-                    <label className="auth-label">Email</label>
-                    <input
-                      className="auth-input"
-                      type="email"
-                      value={authEmail}
-                      onChange={(event) => setAuthEmail(event.target.value)}
-                      placeholder="name@example.com"
-                      required
-                    />
-                  </div>
-                )}
                 <div className="auth-field">
                   <label className="auth-label">Username</label>
                   <input
@@ -493,45 +409,18 @@ export default function App() {
                     required
                   />
                 </div>
-                {authMode === "signup" && (
-                  <div className="auth-field">
-                    <label className="auth-label">Confirm password</label>
-                    <input
-                      className="auth-input"
-                      type="password"
-                      value={authConfirmPassword}
-                      onChange={(event) => setAuthConfirmPassword(event.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-                {authMode === "login" && (
-                  <div className="auth-actions">
-                    <button
-                      className="auth-link"
-                      type="button"
-                      onClick={() => setAuthMode("forgot")}
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                )}
-                <button className="auth-button" type="submit">
-                  {authMode === "signup" ? "Sign up" : "Sign in"}
-                </button>
-                <div className="auth-footer">
-                  {authMode === "signup"
-                    ? "Already have an account?"
-                    : "Don't have an account?"}
+                <div className="auth-actions">
                   <button
+                    className="auth-link"
                     type="button"
-                    onClick={() =>
-                      setAuthMode(authMode === "signup" ? "login" : "signup")
-                    }
+                    onClick={() => setAuthMode("forgot")}
                   >
-                    {authMode === "signup" ? "Sign in" : "Sign up"}
+                    Forgot password?
                   </button>
                 </div>
+                <button className="auth-button" type="submit">
+                  Sign in
+                </button>
               </form>
             )}
           </div>
