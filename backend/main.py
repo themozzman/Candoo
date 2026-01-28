@@ -147,6 +147,10 @@ class AdminFlowApproveRequest(BaseModel):
     flow_id: str
 
 
+class AdminEmailStatusRequest(BaseModel):
+    token: str
+
+
 @app.on_event("startup")
 def startup() -> None:
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -442,3 +446,18 @@ def admin_ai_flow_approve(payload: AdminFlowApproveRequest) -> dict:
     mark_ai_flow_approved(DB_PATH, payload.flow_id)
     _reload_flows()
     return {"success": True, "flow_id": payload.flow_id, "course_id": record["course_id"]}
+
+
+@app.post("/admin/email/status")
+def admin_email_status(payload: AdminEmailStatusRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    resend_key = os.environ.get("RESEND_API_KEY", "").strip()
+    sender = os.environ.get("SMTP_FROM", "").strip()
+    host = os.environ.get("SMTP_HOST", "").strip()
+    return {
+        "has_resend_key": bool(resend_key),
+        "smtp_from": sender,
+        "smtp_host": host,
+        "use_resend": bool(resend_key),
+    }
