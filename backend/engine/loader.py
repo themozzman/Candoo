@@ -13,14 +13,12 @@ class FlowValidationError(ValueError):
 def load_flows(flows_dir: Path) -> dict:
     flows = {}
     if not flows_dir.exists():
-        raise FlowValidationError(f"Flows directory not found: {flows_dir}")
+        flows_dir.mkdir(parents=True, exist_ok=True)
     for path in flows_dir.glob("*.json"):
         with path.open("r", encoding="utf-8") as f:
             data = json.load(f)
         _validate_flow(data, source=str(path))
         flows[data["id"]] = data
-    if not flows:
-        raise FlowValidationError(f"No flow files found in {flows_dir}")
     return flows
 
 
