@@ -383,6 +383,17 @@ def reset_learning_data(db_path: str) -> None:
         conn.close()
 
 
+def reset_flow_data(db_path: str) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("UPDATE courses SET active_flow_id = NULL")
+        conn.execute("DELETE FROM ai_flows")
+        conn.execute("DELETE FROM ai_specs")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def log_attempt(
     db_path: str,
     session_id: str,

@@ -16,6 +16,7 @@ from engine.analytics import (
     list_courses,
     mark_ai_flow_approved,
     reset_auth_data,
+    reset_flow_data,
     reset_learning_data,
     save_ai_flow,
     save_ai_spec,
@@ -129,6 +130,10 @@ class VerifyEmailRequest(BaseModel):
 class AdminResetRequest(BaseModel):
     token: str
     mode: str = "auth"
+
+
+class AdminFlowResetRequest(BaseModel):
+    token: str
 
 
 class AdminSpecRequest(BaseModel):
@@ -371,6 +376,22 @@ def admin_reset(payload: AdminResetRequest) -> dict:
     else:
         raise HTTPException(status_code=400, detail="Invalid mode")
     return {"success": True, "mode": mode}
+
+
+@app.post("/admin/flows/reset")
+def admin_flows_reset(payload: AdminFlowResetRequest) -> dict:
+    if not ADMIN_RESET_TOKEN or payload.token != ADMIN_RESET_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    reset_flow_data(DB_PATH)
+    deleted = 0
+    try:
+        for path in FLOWS_DIR.glob("*.json"):
+            path.unlink(missing_ok=True)
+            deleted += 1
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed deleting flow files: {exc}") from exc
+    _reload_flows()
+    return {"success": True, "deleted_files": deleted}
 
 
 @app.post("/admin/ai/spec")
