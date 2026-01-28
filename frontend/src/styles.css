@@ -153,6 +153,20 @@ body {
   font-size: 14px;
 }
 
+.admin-banner {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ecfeff;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .app-header {
   display: flex;
   align-items: center;

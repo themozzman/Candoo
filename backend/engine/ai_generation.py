@@ -56,7 +56,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '        "id": "<step_id>",\n'
         '        "type": "MC" | "SA",\n'
         '        "prompt": "<string>",\n'
-        '        "options": ["A", "B"]  // MC only,\n'
+        '        "options": ["real answer text", "real answer text"]  // MC only,\n'
         '        "answer": { "kind": "exact", "value": "<option>" }  // MC\n'
         '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
         '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
@@ -72,6 +72,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Use 6-10 steps total.\n"
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
+        "- MC options must be full, meaningful answer strings (no single-letter placeholders like A/B/C/D).\n"
         "- Use realistic answer options and feedback.\n"
         "- Use the provided flow_id.\n\n"
         f"flow_id: {flow_id}\n"

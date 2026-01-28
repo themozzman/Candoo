@@ -314,6 +314,9 @@ export default function App() {
             <p className="app-subtitle">
               Guided practice with instant feedback and step tracking.
             </p>
+            {isAdmin && adminStatus && (
+              <div className="admin-banner">{adminStatus}</div>
+            )}
           </div>
           <div className="user-chip">
             <span className="user-name">{authUser.username}</span>
