@@ -32,6 +32,8 @@ export default function App() {
   const [catalogNotice, setCatalogNotice] = useState("");
   const [adminTokenReady, setAdminTokenReady] = useState(false);
   const [adminToken, setAdminToken] = useState("");
+  const [adminTab, setAdminTab] = useState("students");
+  const [rosterEditMode, setRosterEditMode] = useState(false);
   const [adminTopic, setAdminTopic] = useState("");
   const [adminCourseId, setAdminCourseId] = useState("");
   const [adminSpec, setAdminSpec] = useState(null);
@@ -45,6 +47,7 @@ export default function App() {
   const [adminCourseRosterId, setAdminCourseRosterId] = useState("");
   const [adminCourseStudentIds, setAdminCourseStudentIds] = useState([]);
   const [adminRosterStatus, setAdminRosterStatus] = useState("");
+  const [courseStudentCounts, setCourseStudentCounts] = useState({});
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -58,6 +61,7 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
+  const [returnView, setReturnView] = useState("catalog");
 
   const adminEmails = ["andrestoussieh3@gmail.com"];
   const isAdmin =
@@ -121,13 +125,25 @@ export default function App() {
   }, [courses, adminCourseRosterId]);
 
   useEffect(() => {
-    if (!isAdmin || viewMode !== "admin" || !adminTokenReady) {
+    if (!isAdmin || viewMode !== "admin-course" || !adminTokenReady) {
       return;
     }
     adminListUsers(adminToken)
       .then((data) => setAdminUsers(data.users || []))
       .catch((err) => setAdminRosterStatus(err.message));
   }, [isAdmin, viewMode, adminTokenReady, adminToken]);
+
+  useEffect(() => {
+    if (
+      !isAdmin ||
+      viewMode !== "admin-course" ||
+      !adminTokenReady ||
+      !adminCourseRosterId
+    ) {
+      return;
+    }
+    handleAdminLoadRoster();
+  }, [isAdmin, viewMode, adminTokenReady, adminCourseRosterId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -153,6 +169,11 @@ export default function App() {
     [courses, selectedCourseId]
   );
 
+  const adminCourse = useMemo(() => {
+    const courseId = adminCourseRosterId || selectedCourseId;
+    return courses.find((course) => course.id === courseId);
+  }, [courses, adminCourseRosterId, selectedCourseId]);
+
   const courseFlows = useMemo(() => {
     if (!selectedCourseId) {
       return [];
@@ -165,6 +186,19 @@ export default function App() {
       return flow.id.startsWith(`${selectedCourseId}-`);
     });
   }, [flows, selectedCourseId, selectedCourse]);
+
+  const getCourseFlows = (courseId) => {
+    if (!courseId) {
+      return [];
+    }
+    return flows.filter((flow) => {
+      if (flow.id.startsWith(`${courseId}-`)) {
+        return true;
+      }
+      const course = courses.find((item) => item.id === courseId);
+      return course?.active_flow_id === flow.id;
+    });
+  };
 
   useEffect(() => {
     if (!selectedCourseId) {
@@ -187,6 +221,30 @@ export default function App() {
   }, [courseFlows, selectedCourse, selectedCourseId, selectedFlowId]);
 
   const visibleCourses = useMemo(() => courses, [courses]);
+
+  const enrolledStudents = useMemo(
+    () =>
+      adminUsers.filter((student) => adminCourseStudentIds.includes(student.id)),
+    [adminUsers, adminCourseStudentIds]
+  );
+
+  const studentQuizCards = useMemo(() => {
+    const meta = [
+      { duration: 45, questions: 25, due: "Feb 3, 2026", score: 92 },
+      { duration: 30, questions: 20, due: "Feb 5, 2026" },
+      { duration: 60, questions: 15, due: "Feb 8, 2026" },
+      { duration: 40, questions: 18, due: "Feb 10, 2026" },
+      { duration: 50, questions: 30, due: "Feb 12, 2026", score: 88 }
+    ];
+    return courseFlows.map((flow, index) => {
+      const fallback = {
+        duration: 30 + index * 5,
+        questions: 10 + index * 5,
+        due: "Feb 15, 2026"
+      };
+      return { flow, ...(meta[index] || fallback) };
+    });
+  }, [courseFlows]);
 
   const resetSessionView = () => {
     setSessionId(null);
@@ -263,6 +321,7 @@ export default function App() {
       setAuthUser(null);
       setViewMode("catalog");
       setAdminTokenReady(false);
+      setReturnView("catalog");
       resetSessionView();
     }
   };
@@ -302,8 +361,32 @@ export default function App() {
     }
     setCatalogNotice("");
     setSelectedCourseId(course.id);
-    setSelectedFlowId(course.active_flow_id);
-    setViewMode("runner");
+    setSelectedFlowId(course.active_flow_id || "");
+    if (isAdmin) {
+      setAdminCourseRosterId(course.id);
+      setAdminTab("students");
+      setViewMode("admin-course");
+      return;
+    }
+    setViewMode("student-course");
+  };
+
+  const handleStudentStartQuiz = async (flowId) => {
+    setError("");
+    resetSessionView();
+    try {
+      const data = await startSession(flowId, studentId);
+      setSessionId(data.session_id);
+      setActiveFlow(data.flow);
+      setCurrentStep(data.step);
+      setResult(null);
+      setStepStartTs(Date.now());
+      setSelectedFlowId(flowId);
+      setReturnView("student-course");
+      setViewMode("runner");
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const handleAdminGenerateSpec = async (event) => {
@@ -358,6 +441,10 @@ export default function App() {
       const data = await adminCourseStudents(adminToken, adminCourseRosterId);
       const assigned = (data.students || []).map((student) => student.id);
       setAdminCourseStudentIds(assigned);
+      setCourseStudentCounts((prev) => ({
+        ...prev,
+        [adminCourseRosterId]: assigned.length
+      }));
     } catch (err) {
       setAdminRosterStatus(err.message);
     }
@@ -386,7 +473,12 @@ export default function App() {
       );
       const assigned = (data.students || []).map((student) => student.id);
       setAdminCourseStudentIds(assigned);
+      setCourseStudentCounts((prev) => ({
+        ...prev,
+        [adminCourseRosterId]: assigned.length
+      }));
       setAdminRosterStatus("Roster updated.");
+      setRosterEditMode(false);
       loadCourses(true);
     } catch (err) {
       setAdminRosterStatus(err.message);
@@ -401,6 +493,7 @@ export default function App() {
       return;
     }
     setAdminTokenReady(true);
+    setRosterEditMode(false);
   };
 
   const authTitle = {
@@ -417,31 +510,17 @@ export default function App() {
 
   return (
     <div className="app">
-      {authChecked && authUser && (
+      {authChecked && authUser && viewMode === "runner" && (
         <header className="app-header">
           <div>
             <h1 className="app-title">Guided Learning Flow Engine</h1>
             <p className="app-subtitle">
               Guided practice with instant feedback and step tracking.
             </p>
-            {isAdmin && adminStatus && (
-              <div className="admin-banner">{adminStatus}</div>
-            )}
           </div>
           <div className="user-chip">
             <span className="user-name">{authUser.username}</span>
             {isAdmin && <span className="user-role">Admin</span>}
-            {isAdmin && (
-              <button
-                className="button-ghost"
-                type="button"
-                onClick={() =>
-                  setViewMode((prev) => (prev === "admin" ? "catalog" : "admin"))
-                }
-              >
-                {viewMode === "admin" ? "Close admin" : "Admin dashboard"}
-              </button>
-            )}
             <button className="button-ghost" onClick={handleLogout}>
               Log out
             </button>
@@ -563,33 +642,51 @@ export default function App() {
         )}
 
         {authChecked && authUser && viewMode === "catalog" && (
-          <section className="course-catalog">
-            <div className="course-header">
-              <div>
-                <h2 className="course-title">Select Your Course</h2>
-                <p className="course-subtitle">
-                  Choose the course you would like to enroll in.
-                </p>
-              </div>
+          <section className="course-dashboard">
+            <div className="page-toolbar">
+              <button className="link-button" onClick={handleLogout}>
+                Log out
+              </button>
             </div>
             {catalogNotice && (
               <div className="course-note">{catalogNotice}</div>
             )}
             <div className="course-grid">
-              {visibleCourses.map((course) => (
-                <button
-                  key={course.id}
-                  type="button"
-                  className="course-card"
-                  onClick={() => handleCourseSelect(course)}
-                  disabled={!course.active_flow_id}
-                >
-                  <div className="course-icon">📘</div>
-                  <div className="course-name">{course.name}</div>
-                  <div className="course-topic">{course.subtitle}</div>
-                  <div className="course-description">{course.description}</div>
-                </button>
-              ))}
+              {visibleCourses.map((course) => {
+                const flowCount = getCourseFlows(course.id).length;
+                const studentCount = courseStudentCounts[course.id] || 0;
+                return (
+                  <button
+                    key={course.id}
+                    type="button"
+                    className="course-card"
+                    onClick={() => handleCourseSelect(course)}
+                    disabled={!course.active_flow_id && !isAdmin}
+                  >
+                    <div className="course-card-top">
+                      <div className="course-card-icon">📚</div>
+                      <span className="course-card-pill">
+                        {course.id.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="course-card-title">{course.name}</div>
+                    <div className="course-card-subtitle">
+                      {isAdmin ? "Click to manage course" : "Click to view course"}
+                    </div>
+                    <div className="course-card-divider" />
+                    <div className="course-card-meta">
+                      <div className="course-meta-item">
+                        <span className="course-meta-icon">👥</span>
+                        <span>{studentCount}</span>
+                      </div>
+                      <div className="course-meta-item">
+                        <span className="course-meta-icon">📄</span>
+                        <span>{flowCount}</span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
             {!isAdmin && visibleCourses.length === 0 && (
               <div className="course-note">No courses are available yet.</div>
@@ -597,218 +694,278 @@ export default function App() {
           </section>
         )}
 
-        {authChecked && authUser && viewMode === "admin" && isAdmin && (
-          <section className="admin-dashboard">
-            <div className="admin-dashboard-header">
-              <div>
-                <h2 className="admin-dashboard-title">Admin course dashboard</h2>
-                <p className="admin-dashboard-subtitle">
-                  Add or remove students from courses and publish AI flows.
-                </p>
-              </div>
+        {authChecked && authUser && viewMode === "admin-course" && isAdmin && (
+          <section className="admin-course">
+            <div className="page-toolbar">
               <button
-                className="button-ghost"
+                className="back-link"
                 type="button"
                 onClick={() => setViewMode("catalog")}
               >
-                Back to courses
+                ← Back to Courses
+              </button>
+              <button className="link-button" onClick={handleLogout}>
+                Log out
+              </button>
+            </div>
+            <div className="course-title-row">
+              <h2 className="course-title-lg">{adminCourse?.name}</h2>
+              <span className="course-code-pill">
+                {adminCourse?.id?.toUpperCase()}
+              </span>
+            </div>
+            <div className="course-switcher">
+              <button
+                className={
+                  adminTab === "students"
+                    ? "switcher-button active"
+                    : "switcher-button"
+                }
+                type="button"
+                onClick={() => setAdminTab("students")}
+              >
+                Students
+              </button>
+              <button
+                className={
+                  adminTab === "quizzes"
+                    ? "switcher-button active"
+                    : "switcher-button"
+                }
+                type="button"
+                onClick={() => setAdminTab("quizzes")}
+              >
+                Quizzes
               </button>
             </div>
 
-            <div className="admin-dashboard-grid">
-              <div className="admin-card">
-                <h3 className="card-title">Admin access</h3>
-                <form onSubmit={handleAdminAuth} className="admin-token-form">
-                  <div className="form-field">
-                    <label className="form-label">Admin token</label>
-                    <input
-                      className="form-input"
-                      type="password"
-                      value={adminToken}
-                      onChange={(event) => {
-                        setAdminToken(event.target.value);
-                        setAdminTokenReady(false);
-                      }}
-                      placeholder="Enter admin token"
-                      required
-                    />
-                  </div>
-                  <button className="button-primary" type="submit">
-                    Unlock admin tools
+            {!adminTokenReady && (
+              <div className="token-card">
+                <div className="token-title">Admin access required</div>
+                <form className="token-form" onSubmit={handleAdminAuth}>
+                  <input
+                    className="token-input"
+                    type="password"
+                    value={adminToken}
+                    onChange={(event) => {
+                      setAdminToken(event.target.value);
+                      setAdminTokenReady(false);
+                    }}
+                    placeholder="Enter admin token"
+                    required
+                  />
+                  <button className="token-button" type="submit">
+                    Unlock
                   </button>
                 </form>
-                {adminRosterStatus && <div className="admin-status">{adminRosterStatus}</div>}
               </div>
+            )}
 
-              <div className="admin-card">
-                <h3 className="card-title">Courses</h3>
-                <div className="admin-course-list">
-                  {courses.map((course) => (
-                    <button
-                      key={course.id}
-                      type="button"
-                      className={
-                        course.id === (adminCourseRosterId || selectedCourseId)
-                          ? "admin-course-item active"
-                          : "admin-course-item"
-                      }
-                      onClick={() => setAdminCourseRosterId(course.id)}
-                    >
-                      <div className="admin-course-name">{course.name}</div>
-                      <div className="admin-course-subtitle">{course.subtitle}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="admin-card admin-card-wide">
-                <h3 className="card-title">Course roster</h3>
-                <p className="admin-helper">
-                  Select a course to assign students. Unassigned students will not
-                  see any courses.
-                </p>
-                <div className="admin-roster-actions">
+            {adminTab === "students" && (
+              <div className="admin-panel-card">
+                <div className="admin-panel-header">
+                  <div className="admin-panel-title">
+                    Enrolled Students
+                    <span className="admin-count-pill">
+                      {enrolledStudents.length}
+                    </span>
+                  </div>
                   <button
-                    className="button-secondary"
+                    className="admin-action"
                     type="button"
-                    onClick={handleAdminLoadRoster}
+                    onClick={() => {
+                      setRosterEditMode(true);
+                      handleAdminLoadRoster();
+                    }}
                     disabled={!adminTokenReady}
                   >
-                    Load roster
-                  </button>
-                  <button
-                    className="button-primary"
-                    type="button"
-                    onClick={handleAdminSaveRoster}
-                    disabled={!adminTokenReady}
-                  >
-                    Save roster
+                    Add Student
                   </button>
                 </div>
-                <div className="admin-roster-grid">
-                  <div>
-                    <h4 className="admin-subtitle">Assigned students</h4>
-                    <div className="admin-roster">
+
+                {adminRosterStatus && (
+                  <div className="admin-status">{adminRosterStatus}</div>
+                )}
+
+                {rosterEditMode ? (
+                  <div className="admin-edit">
+                    <div className="admin-edit-actions">
+                      <button
+                        className="button-secondary"
+                        type="button"
+                        onClick={() => {
+                          setRosterEditMode(false);
+                          handleAdminLoadRoster();
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="button-primary"
+                        type="button"
+                        onClick={handleAdminSaveRoster}
+                      >
+                        Save roster
+                      </button>
+                    </div>
+                    <div className="student-list">
                       {adminUsers.length === 0 ? (
                         <div className="admin-empty">No students found.</div>
                       ) : (
-                        adminUsers
-                          .filter((student) => adminCourseStudentIds.includes(student.id))
-                          .map((student) => (
-                            <label key={student.id} className="admin-user-row">
-                              <input
-                                type="checkbox"
-                                checked={adminCourseStudentIds.includes(student.id)}
-                                onChange={() => toggleStudentAssignment(student.id)}
-                              />
-                              <span className="admin-user-name">{student.username}</span>
-                              <span className="admin-user-email">
+                        adminUsers.map((student) => (
+                          <label key={student.id} className="student-row">
+                            <input
+                              type="checkbox"
+                              checked={adminCourseStudentIds.includes(student.id)}
+                              onChange={() => toggleStudentAssignment(student.id)}
+                            />
+                            <div>
+                              <div className="student-name">
+                                {student.username}
+                              </div>
+                              <div className="student-email">
                                 {student.email || "no email"}
-                              </span>
-                            </label>
-                          ))
+                              </div>
+                            </div>
+                            {adminEmails.includes(
+                              (student.email || "").toLowerCase()
+                            ) && <span className="student-badge">Admin</span>}
+                          </label>
+                        ))
                       )}
                     </div>
                   </div>
-                  <div>
-                    <h4 className="admin-subtitle">Unassigned students</h4>
-                    <div className="admin-roster">
-                      {adminUsers.length === 0 ? (
-                        <div className="admin-empty">No students found.</div>
-                      ) : (
-                        adminUsers
-                          .filter((student) => !adminCourseStudentIds.includes(student.id))
-                          .map((student) => (
-                            <label key={student.id} className="admin-user-row">
-                              <input
-                                type="checkbox"
-                                checked={adminCourseStudentIds.includes(student.id)}
-                                onChange={() => toggleStudentAssignment(student.id)}
-                              />
-                              <span className="admin-user-name">{student.username}</span>
-                              <span className="admin-user-email">
-                                {student.email || "no email"}
-                              </span>
-                            </label>
-                          ))
-                      )}
-                    </div>
+                ) : (
+                  <div className="student-list">
+                    {enrolledStudents.length === 0 ? (
+                      <div className="admin-empty">No students assigned yet.</div>
+                    ) : (
+                      enrolledStudents.map((student) => (
+                        <div key={student.id} className="student-row">
+                          <div>
+                            <div className="student-name">
+                              {student.username}
+                            </div>
+                            <div className="student-email">
+                              {student.email || "no email"}
+                            </div>
+                          </div>
+                          {adminEmails.includes(
+                            (student.email || "").toLowerCase()
+                          ) && <span className="student-badge">Admin</span>}
+                        </div>
+                      ))
+                    )}
                   </div>
+                )}
+              </div>
+            )}
+
+            {adminTab === "quizzes" && (
+              <div className="admin-panel-card">
+                <div className="admin-panel-header">
+                  <div className="admin-panel-title">Published Quizzes</div>
+                </div>
+                <div className="quiz-list">
+                  {courseFlows.length === 0 ? (
+                    <div className="admin-empty">No quizzes published yet.</div>
+                  ) : (
+                    courseFlows.map((flow) => (
+                      <div key={flow.id} className="quiz-row">
+                        <div className="quiz-title">{flow.title}</div>
+                        <button className="quiz-button" type="button">
+                          View Reports
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
+            )}
+          </section>
+        )}
 
-              <div className="admin-card admin-card-wide">
-                <h3 className="card-title">AI flow generator</h3>
-                <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
-                  <div className="form-field">
-                    <label className="form-label">Course</label>
-                    <select
-                      className="form-select"
-                      value={adminCourseId || selectedCourseId}
-                      onChange={(event) => setAdminCourseId(event.target.value)}
-                      required
-                    >
-                      <option value="" disabled>
-                        Select a course
-                      </option>
-                      {courseOptions}
-                    </select>
+        {authChecked && authUser && viewMode === "student-course" && (
+          <section className="student-course">
+            <div className="page-toolbar">
+              <button
+                className="back-link"
+                type="button"
+                onClick={() => setViewMode("catalog")}
+              >
+                ← Back to Courses
+              </button>
+              <button className="link-button" onClick={handleLogout}>
+                Log out
+              </button>
+            </div>
+            <div className="course-title-row">
+              <h2 className="course-title-lg">{selectedCourse?.name}</h2>
+              <span className="course-code-pill">
+                {selectedCourse?.id?.toUpperCase()}
+              </span>
+            </div>
+            <div className="course-subheader">Available Quizzes</div>
+            {error && <div className="course-note">Error: {error}</div>}
+            <div className="student-quiz-list">
+              {studentQuizCards.length === 0 ? (
+                <div className="admin-empty">No quizzes available yet.</div>
+              ) : (
+                studentQuizCards.map((quiz, index) => (
+                  <div key={quiz.flow.id} className="student-quiz-card">
+                    <div className="quiz-left">
+                      <div
+                        className={
+                          quiz.score
+                            ? "quiz-status complete"
+                            : "quiz-status"
+                        }
+                      >
+                        {quiz.score ? "✓" : ""}
+                      </div>
+                      <div>
+                        <div className="quiz-title">{quiz.flow.title}</div>
+                        <div className="quiz-meta">
+                          <span>⏱ {quiz.duration} min</span>
+                          <span>•</span>
+                          <span>{quiz.questions} questions</span>
+                          <span>•</span>
+                          <span className={quiz.score ? "" : "quiz-due"}>
+                            Due {quiz.due}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="quiz-right">
+                      {quiz.score ? (
+                        <>
+                          <div className="quiz-score">
+                            <div className="quiz-score-value">
+                              {quiz.score}%
+                            </div>
+                            <div className="quiz-score-label">Score</div>
+                          </div>
+                          <button
+                            className="quiz-review"
+                            type="button"
+                            onClick={() => handleStudentStartQuiz(quiz.flow.id)}
+                          >
+                            Review
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="quiz-start"
+                          type="button"
+                          onClick={() => handleStudentStartQuiz(quiz.flow.id)}
+                        >
+                          Start Quiz
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="form-field">
-                    <label className="form-label">Topic</label>
-                    <input
-                      className="form-input"
-                      type="text"
-                      value={adminTopic}
-                      onChange={(event) => setAdminTopic(event.target.value)}
-                      placeholder="e.g., French adjective to adverb rules"
-                      required
-                    />
-                  </div>
-                  <button className="button-primary" type="submit" disabled={!adminTokenReady}>
-                    Generate spec
-                  </button>
-                </form>
-                {adminStatus && <div className="admin-status">{adminStatus}</div>}
-                {adminSpec && (
-                  <div className="admin-block">
-                    <h4 className="admin-title">Spec draft</h4>
-                    <textarea
-                      className="admin-textarea"
-                      value={adminSpecText}
-                      onChange={(event) => setAdminSpecText(event.target.value)}
-                      rows={10}
-                    />
-                    <button
-                      className="button-secondary"
-                      type="button"
-                      onClick={handleAdminApproveSpec}
-                      disabled={!adminTokenReady}
-                    >
-                      Approve spec & generate flow
-                    </button>
-                  </div>
-                )}
-                {adminFlow && (
-                  <div className="admin-block">
-                    <h4 className="admin-title">Generated flow</h4>
-                    <textarea
-                      className="admin-textarea"
-                      value={adminFlowText}
-                      onChange={(event) => setAdminFlowText(event.target.value)}
-                      rows={12}
-                    />
-                    <button
-                      className="button-primary"
-                      type="button"
-                      onClick={handleAdminApproveFlow}
-                      disabled={!adminTokenReady}
-                    >
-                      Approve & publish flow
-                    </button>
-                  </div>
-                )}
-              </div>
+                ))
+              )}
             </div>
           </section>
         )}
@@ -825,7 +982,7 @@ export default function App() {
               <button
                 className="button-ghost"
                 type="button"
-                onClick={() => setViewMode("catalog")}
+                onClick={() => setViewMode(returnView)}
               >
                 Back to courses
               </button>
