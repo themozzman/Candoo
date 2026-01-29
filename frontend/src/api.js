@@ -105,3 +105,24 @@ export function adminApproveFlow(token, flowId) {
     body: JSON.stringify({ token, flow_id: flowId })
   });
 }
+
+export function adminListUsers(token) {
+  return request("/admin/users/list", {
+    method: "POST",
+    body: JSON.stringify({ token })
+  });
+}
+
+export function adminCourseStudents(token, courseId) {
+  return request("/admin/courses/students", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId })
+  });
+}
+
+export function adminSetCourseStudents(token, courseId, studentIds) {
+  return request("/admin/courses/students/set", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId, student_ids: studentIds })
+  });
+}

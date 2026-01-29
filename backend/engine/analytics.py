@@ -158,6 +158,18 @@ def init_db(db_path: str) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_courses (
+                user_id INTEGER NOT NULL,
+                course_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, course_id),
+                FOREIGN KEY(user_id) REFERENCES users(id),
+                FOREIGN KEY(course_id) REFERENCES courses(id)
+            )
+            """
+        )
         _ensure_users_email_column(conn)
         _ensure_courses(conn)
         conn.commit()
@@ -232,6 +244,25 @@ def list_courses(db_path: str) -> list[dict]:
             FROM courses
             ORDER BY id
             """
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def list_courses_for_user(db_path: str, user_id: int) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT c.id, c.name, c.subtitle, c.description, c.active_flow_id
+            FROM courses c
+            JOIN user_courses uc ON uc.course_id = c.id
+            WHERE uc.user_id = ?
+            ORDER BY c.id
+            """,
+            (user_id,),
         ).fetchall()
         return [dict(row) for row in rows]
     finally:
@@ -357,6 +388,116 @@ def mark_ai_flow_approved(db_path: str, flow_id: str) -> None:
             ("flow_approved", _now_iso(), flow_id),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def list_users(db_path: str) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, username, email, verified_at, created_at
+            FROM users
+            ORDER BY username
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def list_course_students(db_path: str, course_id: str) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT u.id, u.username, u.email, u.verified_at
+            FROM users u
+            JOIN user_courses uc ON uc.user_id = u.id
+            WHERE uc.course_id = ?
+            ORDER BY u.username
+            """,
+            (course_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def user_has_course(db_path: str, user_id: int, course_id: str) -> bool:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT 1
+            FROM user_courses
+            WHERE user_id = ? AND course_id = ?
+            LIMIT 1
+            """,
+            (user_id, course_id),
+        ).fetchone()
+        return bool(row)
+    finally:
+        conn.close()
+
+
+def set_course_students(db_path: str, course_id: str, user_ids: list[int]) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM user_courses WHERE course_id = ?", (course_id,))
+        now = _now_iso()
+        conn.executemany(
+            """
+            INSERT INTO user_courses (user_id, course_id, created_at)
+            VALUES (?, ?, ?)
+            """,
+            [(user_id, course_id, now) for user_id in user_ids],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_user_courses(db_path: str, user_id: int, course_ids: list[str]) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute("DELETE FROM user_courses WHERE user_id = ?", (user_id,))
+        now = _now_iso()
+        conn.executemany(
+            """
+            INSERT INTO user_courses (user_id, course_id, created_at)
+            VALUES (?, ?, ?)
+            """,
+            [(user_id, course_id, now) for course_id in course_ids],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_course_id_for_flow(db_path: str, flow_id: str) -> str | None:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT course_id FROM ai_flows
+            WHERE id = ?
+            """,
+            (flow_id,),
+        ).fetchone()
+        if row:
+            return row[0]
+        row = conn.execute(
+            """
+            SELECT id FROM courses
+            WHERE active_flow_id = ?
+            """,
+            (flow_id,),
+        ).fetchone()
+        return row[0] if row else None
     finally:
         conn.close()
 

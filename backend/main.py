@@ -8,19 +8,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from engine.analytics import (
+    get_course_id_for_flow,
     get_ai_flow,
     get_ai_spec,
     get_course,
     get_teacher_report,
     init_db,
     list_courses,
+    list_courses_for_user,
+    list_course_students,
+    list_users,
     mark_ai_flow_approved,
     reset_auth_data,
     reset_flow_data,
     reset_learning_data,
     save_ai_flow,
     save_ai_spec,
+    set_course_students,
     set_course_flow,
+    set_user_courses,
+    user_has_course,
 )
 from engine.ai_generation import AIFlowError, generate_flow, generate_spec, now_label
 from engine.auth import (
@@ -67,6 +74,11 @@ VERIFY_CODE_TTL_SECONDS = int(os.environ.get("VERIFY_CODE_TTL_SECONDS", "600"))
 RESET_LINK_BASE = os.environ.get("RESET_LINK_BASE", "http://localhost:5173")
 ADMIN_RESET_TOKEN = os.environ.get("ADMIN_RESET_TOKEN", "")
 ADMIN_FLOW_TOKEN = os.environ.get("ADMIN_FLOW_TOKEN", "")
+ADMIN_EMAILS = [
+    email.strip().lower()
+    for email in os.environ.get("ADMIN_EMAILS", "").split(",")
+    if email.strip()
+]
 COOKIE_NAME = "session_token"
 CORS_ORIGINS = [
     origin.strip()
@@ -162,6 +174,21 @@ class AdminCreateUsersRequest(BaseModel):
     users: list[dict]
 
 
+class AdminUsersRequest(BaseModel):
+    token: str
+
+
+class AdminCourseStudentsRequest(BaseModel):
+    token: str
+    course_id: str
+
+
+class AdminCourseStudentsSetRequest(BaseModel):
+    token: str
+    course_id: str
+    student_ids: list[int]
+
+
 @app.on_event("startup")
 def startup() -> None:
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -215,6 +242,11 @@ def get_current_user(request: Request) -> dict:
     return user
 
 
+def is_admin_user(user: dict) -> bool:
+    email = (user.get("email") or "").lower()
+    return bool(email) and email in ADMIN_EMAILS
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -230,8 +262,10 @@ def list_flows() -> list[dict]:
 
 
 @app.get("/courses")
-def list_courses_endpoint() -> list[dict]:
-    return list_courses(DB_PATH)
+def list_courses_endpoint(user: dict = Depends(get_current_user)) -> list[dict]:
+    if is_admin_user(user):
+        return list_courses(DB_PATH)
+    return list_courses_for_user(DB_PATH, user["id"])
 
 
 @app.post("/session/start")
@@ -240,6 +274,12 @@ def session_start(payload: StartSessionRequest, user: dict = Depends(get_current
     flow = flows.get(payload.flow_id)
     if flow is None:
         raise HTTPException(status_code=404, detail="Flow not found")
+    if not is_admin_user(user):
+        course_id = get_course_id_for_flow(DB_PATH, payload.flow_id)
+        if not course_id:
+            raise HTTPException(status_code=403, detail="Flow is not assigned to a course")
+        if not user_has_course(DB_PATH, user["id"], course_id):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
     session_id, step = start_session(flow, user["username"], DB_PATH)
     return {
         "session_id": session_id,
@@ -479,7 +519,40 @@ def admin_create_users(payload: AdminCreateUsersRequest) -> dict:
             continue
         try:
             user = create_user_verified(DB_PATH, username, password, email)
+            course_ids = entry.get("course_ids") or []
+            if isinstance(course_ids, list) and course_ids:
+                set_user_courses(DB_PATH, user["id"], course_ids)
             created.append({"username": user["username"], "email": user["email"]})
         except AuthError as exc:
             errors.append({"username": username, "email": email, "error": str(exc)})
     return {"created": created, "errors": errors}
+
+
+@app.post("/admin/users/list")
+def admin_list_users(payload: AdminUsersRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return {"users": list_users(DB_PATH)}
+
+
+@app.post("/admin/courses/students")
+def admin_course_students(payload: AdminCourseStudentsRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    course = get_course(DB_PATH, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    students = list_course_students(DB_PATH, payload.course_id)
+    return {"course": course, "students": students}
+
+
+@app.post("/admin/courses/students/set")
+def admin_course_students_set(payload: AdminCourseStudentsSetRequest) -> dict:
+    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    course = get_course(DB_PATH, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    set_course_students(DB_PATH, payload.course_id, payload.student_ids)
+    students = list_course_students(DB_PATH, payload.course_id)
+    return {"course": course, "students": students}

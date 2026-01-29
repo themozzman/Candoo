@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   adminApproveFlow,
   adminApproveSpec,
+  adminCourseStudents,
   adminGenerateSpec,
+  adminListUsers,
+  adminSetCourseStudents,
   fetchCourses,
   fetchFlows,
   fetchMe,
@@ -27,7 +30,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [viewMode, setViewMode] = useState("catalog");
   const [catalogNotice, setCatalogNotice] = useState("");
-  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminTokenReady, setAdminTokenReady] = useState(false);
   const [adminToken, setAdminToken] = useState("");
   const [adminTopic, setAdminTopic] = useState("");
   const [adminCourseId, setAdminCourseId] = useState("");
@@ -38,6 +41,10 @@ export default function App() {
   const [adminFlowId, setAdminFlowId] = useState("");
   const [adminFlowText, setAdminFlowText] = useState("");
   const [adminStatus, setAdminStatus] = useState("");
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminCourseRosterId, setAdminCourseRosterId] = useState("");
+  const [adminCourseStudentIds, setAdminCourseStudentIds] = useState([]);
+  const [adminRosterStatus, setAdminRosterStatus] = useState("");
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -108,10 +115,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isAdmin) {
-      setAdminOpen(false);
+    if (!adminCourseRosterId && courses.length > 0) {
+      setAdminCourseRosterId(courses[0].id);
     }
-  }, [isAdmin]);
+  }, [courses, adminCourseRosterId]);
+
+  useEffect(() => {
+    if (!isAdmin || viewMode !== "admin" || !adminTokenReady) {
+      return;
+    }
+    adminListUsers(adminToken)
+      .then((data) => setAdminUsers(data.users || []))
+      .catch((err) => setAdminRosterStatus(err.message));
+  }, [isAdmin, viewMode, adminTokenReady, adminToken]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -170,12 +186,7 @@ export default function App() {
     }
   }, [courseFlows, selectedCourse, selectedCourseId, selectedFlowId]);
 
-  const visibleCourses = useMemo(() => {
-    if (isAdmin) {
-      return courses;
-    }
-    return courses.filter((course) => course.active_flow_id);
-  }, [courses, isAdmin]);
+  const visibleCourses = useMemo(() => courses, [courses]);
 
   const resetSessionView = () => {
     setSessionId(null);
@@ -251,7 +262,7 @@ export default function App() {
     } finally {
       setAuthUser(null);
       setViewMode("catalog");
-      setAdminOpen(false);
+      setAdminTokenReady(false);
       resetSessionView();
     }
   };
@@ -285,7 +296,7 @@ export default function App() {
 
 
   const handleCourseSelect = (course) => {
-    if (!course.active_flow_id) {
+    if (!course.active_flow_id && !isAdmin) {
       setCatalogNotice("This course is coming soon.");
       return;
     }
@@ -331,9 +342,65 @@ export default function App() {
       await adminApproveFlow(adminToken, adminFlowId);
       setAdminStatus("Flow approved and published.");
       loadCourses(true);
+      loadFlows();
     } catch (err) {
       setAdminStatus(err.message);
     }
+  };
+
+  const handleAdminLoadRoster = async () => {
+    if (!adminCourseRosterId) {
+      setAdminRosterStatus("Select a course to manage.");
+      return;
+    }
+    setAdminRosterStatus("");
+    try {
+      const data = await adminCourseStudents(adminToken, adminCourseRosterId);
+      const assigned = (data.students || []).map((student) => student.id);
+      setAdminCourseStudentIds(assigned);
+    } catch (err) {
+      setAdminRosterStatus(err.message);
+    }
+  };
+
+  const toggleStudentAssignment = (studentId) => {
+    setAdminCourseStudentIds((prev) => {
+      if (prev.includes(studentId)) {
+        return prev.filter((id) => id !== studentId);
+      }
+      return [...prev, studentId];
+    });
+  };
+
+  const handleAdminSaveRoster = async () => {
+    if (!adminCourseRosterId) {
+      setAdminRosterStatus("Select a course to manage.");
+      return;
+    }
+    setAdminRosterStatus("");
+    try {
+      const data = await adminSetCourseStudents(
+        adminToken,
+        adminCourseRosterId,
+        adminCourseStudentIds
+      );
+      const assigned = (data.students || []).map((student) => student.id);
+      setAdminCourseStudentIds(assigned);
+      setAdminRosterStatus("Roster updated.");
+      loadCourses(true);
+    } catch (err) {
+      setAdminRosterStatus(err.message);
+    }
+  };
+
+  const handleAdminAuth = async (event) => {
+    event.preventDefault();
+    setAdminRosterStatus("");
+    if (!adminToken) {
+      setAdminRosterStatus("Enter your admin token to continue.");
+      return;
+    }
+    setAdminTokenReady(true);
   };
 
   const authTitle = {
@@ -368,9 +435,11 @@ export default function App() {
               <button
                 className="button-ghost"
                 type="button"
-                onClick={() => setAdminOpen((prev) => !prev)}
+                onClick={() =>
+                  setViewMode((prev) => (prev === "admin" ? "catalog" : "admin"))
+                }
               >
-                {adminOpen ? "Close admin" : "Admin"}
+                {viewMode === "admin" ? "Close admin" : "Admin dashboard"}
               </button>
             )}
             <button className="button-ghost" onClick={handleLogout}>
@@ -525,21 +594,152 @@ export default function App() {
             {!isAdmin && visibleCourses.length === 0 && (
               <div className="course-note">No courses are available yet.</div>
             )}
-            {isAdmin && adminOpen && (
-              <div className="admin-panel">
-                <h3 className="card-title">Admin: Generate AI Flow</h3>
-                <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
+          </section>
+        )}
+
+        {authChecked && authUser && viewMode === "admin" && isAdmin && (
+          <section className="admin-dashboard">
+            <div className="admin-dashboard-header">
+              <div>
+                <h2 className="admin-dashboard-title">Admin course dashboard</h2>
+                <p className="admin-dashboard-subtitle">
+                  Add or remove students from courses and publish AI flows.
+                </p>
+              </div>
+              <button
+                className="button-ghost"
+                type="button"
+                onClick={() => setViewMode("catalog")}
+              >
+                Back to courses
+              </button>
+            </div>
+
+            <div className="admin-dashboard-grid">
+              <div className="admin-card">
+                <h3 className="card-title">Admin access</h3>
+                <form onSubmit={handleAdminAuth} className="admin-token-form">
                   <div className="form-field">
                     <label className="form-label">Admin token</label>
                     <input
                       className="form-input"
                       type="password"
                       value={adminToken}
-                      onChange={(event) => setAdminToken(event.target.value)}
+                      onChange={(event) => {
+                        setAdminToken(event.target.value);
+                        setAdminTokenReady(false);
+                      }}
                       placeholder="Enter admin token"
                       required
                     />
                   </div>
+                  <button className="button-primary" type="submit">
+                    Unlock admin tools
+                  </button>
+                </form>
+                {adminRosterStatus && <div className="admin-status">{adminRosterStatus}</div>}
+              </div>
+
+              <div className="admin-card">
+                <h3 className="card-title">Courses</h3>
+                <div className="admin-course-list">
+                  {courses.map((course) => (
+                    <button
+                      key={course.id}
+                      type="button"
+                      className={
+                        course.id === (adminCourseRosterId || selectedCourseId)
+                          ? "admin-course-item active"
+                          : "admin-course-item"
+                      }
+                      onClick={() => setAdminCourseRosterId(course.id)}
+                    >
+                      <div className="admin-course-name">{course.name}</div>
+                      <div className="admin-course-subtitle">{course.subtitle}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="admin-card admin-card-wide">
+                <h3 className="card-title">Course roster</h3>
+                <p className="admin-helper">
+                  Select a course to assign students. Unassigned students will not
+                  see any courses.
+                </p>
+                <div className="admin-roster-actions">
+                  <button
+                    className="button-secondary"
+                    type="button"
+                    onClick={handleAdminLoadRoster}
+                    disabled={!adminTokenReady}
+                  >
+                    Load roster
+                  </button>
+                  <button
+                    className="button-primary"
+                    type="button"
+                    onClick={handleAdminSaveRoster}
+                    disabled={!adminTokenReady}
+                  >
+                    Save roster
+                  </button>
+                </div>
+                <div className="admin-roster-grid">
+                  <div>
+                    <h4 className="admin-subtitle">Assigned students</h4>
+                    <div className="admin-roster">
+                      {adminUsers.length === 0 ? (
+                        <div className="admin-empty">No students found.</div>
+                      ) : (
+                        adminUsers
+                          .filter((student) => adminCourseStudentIds.includes(student.id))
+                          .map((student) => (
+                            <label key={student.id} className="admin-user-row">
+                              <input
+                                type="checkbox"
+                                checked={adminCourseStudentIds.includes(student.id)}
+                                onChange={() => toggleStudentAssignment(student.id)}
+                              />
+                              <span className="admin-user-name">{student.username}</span>
+                              <span className="admin-user-email">
+                                {student.email || "no email"}
+                              </span>
+                            </label>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="admin-subtitle">Unassigned students</h4>
+                    <div className="admin-roster">
+                      {adminUsers.length === 0 ? (
+                        <div className="admin-empty">No students found.</div>
+                      ) : (
+                        adminUsers
+                          .filter((student) => !adminCourseStudentIds.includes(student.id))
+                          .map((student) => (
+                            <label key={student.id} className="admin-user-row">
+                              <input
+                                type="checkbox"
+                                checked={adminCourseStudentIds.includes(student.id)}
+                                onChange={() => toggleStudentAssignment(student.id)}
+                              />
+                              <span className="admin-user-name">{student.username}</span>
+                              <span className="admin-user-email">
+                                {student.email || "no email"}
+                              </span>
+                            </label>
+                          ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-card admin-card-wide">
+                <h3 className="card-title">AI flow generator</h3>
+                <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
                   <div className="form-field">
                     <label className="form-label">Course</label>
                     <select
@@ -565,7 +765,7 @@ export default function App() {
                       required
                     />
                   </div>
-                  <button className="button-primary" type="submit">
+                  <button className="button-primary" type="submit" disabled={!adminTokenReady}>
                     Generate spec
                   </button>
                 </form>
@@ -579,7 +779,12 @@ export default function App() {
                       onChange={(event) => setAdminSpecText(event.target.value)}
                       rows={10}
                     />
-                    <button className="button-secondary" type="button" onClick={handleAdminApproveSpec}>
+                    <button
+                      className="button-secondary"
+                      type="button"
+                      onClick={handleAdminApproveSpec}
+                      disabled={!adminTokenReady}
+                    >
                       Approve spec & generate flow
                     </button>
                   </div>
@@ -593,13 +798,18 @@ export default function App() {
                       onChange={(event) => setAdminFlowText(event.target.value)}
                       rows={12}
                     />
-                    <button className="button-primary" type="button" onClick={handleAdminApproveFlow}>
+                    <button
+                      className="button-primary"
+                      type="button"
+                      onClick={handleAdminApproveFlow}
+                      disabled={!adminTokenReady}
+                    >
                       Approve & publish flow
                     </button>
                   </div>
                 )}
               </div>
-            )}
+            </div>
           </section>
         )}
 
