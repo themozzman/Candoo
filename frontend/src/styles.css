@@ -299,6 +299,64 @@ body {
   background: #f8fafc;
 }
 
+.math-keyboard {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.math-keyboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.math-keyboard-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.math-keyboard-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.math-function-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.math-keyboard-key {
+  border: none;
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.math-keyboard-key:hover {
+  background: #e2e8f0;
+}
+
+.math-keyboard-toggle {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.math-keyboard-toggle:hover {
+  background: #1e293b;
+}
+
 .form-input:disabled {
   color: #94a3b8;
 }

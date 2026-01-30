@@ -169,6 +169,31 @@ export default function App() {
     [courses, selectedCourseId]
   );
 
+  const isMathCourse = useMemo(() => {
+    if (!selectedCourse) {
+      return false;
+    }
+    const haystack = [
+      selectedCourse.id,
+      selectedCourse.name,
+      selectedCourse.subtitle,
+      selectedCourse.description
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    const keywords = [
+      "math",
+      "calc",
+      "calculus",
+      "algebra",
+      "geometry",
+      "trig",
+      "trigonometry"
+    ];
+    return keywords.some((keyword) => haystack.includes(keyword));
+  }, [selectedCourse]);
+
   const adminCourse = useMemo(() => {
     const courseId = adminCourseRosterId || selectedCourseId;
     return courses.find((course) => course.id === courseId);
@@ -648,6 +673,7 @@ export default function App() {
                 Log out
               </button>
             </div>
+            {error && <div className="course-note">Error: {error}</div>}
             {catalogNotice && (
               <div className="course-note">{catalogNotice}</div>
             )}
@@ -688,7 +714,7 @@ export default function App() {
                 );
               })}
             </div>
-            {!isAdmin && visibleCourses.length === 0 && (
+            {visibleCourses.length === 0 && (
               <div className="course-note">No courses are available yet.</div>
             )}
           </section>
@@ -1071,6 +1097,7 @@ export default function App() {
                     step={currentStep}
                     onAnswer={(value) => handleSubmit(value, false)}
                     onSkip={() => handleSubmit("", true)}
+                    showMathKeyboard={isMathCourse}
                   />
                 )
               ) : sessionId ? (
