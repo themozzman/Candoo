@@ -192,10 +192,8 @@ def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_courses(conn: sqlite3.Connection) -> None:
-    existing = conn.execute("SELECT COUNT(*) FROM courses").fetchone()
-    count = int(existing[0]) if existing else 0
-    if count > 0:
-        return
+    existing_rows = conn.execute("SELECT id FROM courses").fetchall()
+    existing_ids = {row[0] for row in existing_rows}
     now = _now_iso()
     defaults = [
         (
@@ -222,7 +220,18 @@ def _ensure_courses(conn: sqlite3.Connection) -> None:
             None,
             now,
         ),
+        (
+            "spanish-2",
+            "Spanish 2",
+            "Spanish",
+            "Build confidence in conversational Spanish and grammar.",
+            None,
+            now,
+        ),
     ]
+    missing = [course for course in defaults if course[0] not in existing_ids]
+    if not missing:
+        return
     conn.executemany(
         """
         INSERT INTO courses (
@@ -230,7 +239,7 @@ def _ensure_courses(conn: sqlite3.Connection) -> None:
         )
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        defaults,
+        missing,
     )
 
 
