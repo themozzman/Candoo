@@ -496,6 +496,7 @@ export default function App() {
     }
     setAdminRosterStatus("");
     try {
+      let nextStudentIds = adminCourseStudentIds;
       if (pendingStudents.length > 0) {
         await adminCreateUsers(adminToken || "", pendingStudents);
         const usersData = await adminListUsers(adminToken || "");
@@ -510,7 +511,10 @@ export default function App() {
             )
           )
           .map((user) => user.id);
-        setAdminCourseStudentIds((prev) => Array.from(new Set([...prev, ...createdIds])));
+        nextStudentIds = Array.from(
+          new Set([...adminCourseStudentIds, ...createdIds])
+        );
+        setAdminCourseStudentIds(nextStudentIds);
         setPendingStudents([]);
         setNewStudentEmail("");
         setNewStudentUsername("");
@@ -519,7 +523,7 @@ export default function App() {
       const data = await adminSetCourseStudents(
         adminToken || "",
         adminCourseRosterId,
-        adminCourseStudentIds
+        nextStudentIds
       );
       const assigned = (data.students || []).map((student) => student.id);
       setAdminCourseStudentIds(assigned);
