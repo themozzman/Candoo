@@ -668,19 +668,29 @@ export default function App() {
 
         {authChecked && authUser && viewMode === "catalog" && (
           <section className="course-dashboard">
-            <div className="page-toolbar">
-              <button className="link-button" onClick={handleLogout}>
-                Log out
-              </button>
+            <div className="catalog-topbar">
+              <div className="brand-mark">
+                <span className="brand-text">Candoo</span>
+                <span className="brand-accent">Brandeis</span>
+              </div>
+              <div className="catalog-user">
+                <span className="catalog-username">{authUser.username}</span>
+                {isAdmin && <span className="admin-badge">★ Admin</span>}
+                <button className="link-button" onClick={handleLogout}>
+                  Log out
+                </button>
+              </div>
+            </div>
+            <div className="catalog-header">
+              <h2 className="catalog-title">My Courses</h2>
             </div>
             {error && <div className="course-note">Error: {error}</div>}
             {catalogNotice && (
               <div className="course-note">{catalogNotice}</div>
             )}
             <div className="course-grid">
-              {visibleCourses.map((course) => {
-                const flowCount = getCourseFlows(course.id).length;
-                const studentCount = courseStudentCounts[course.id] || 0;
+              {visibleCourses.map((course, index) => {
+                const coverHue = 210 + index * 35;
                 return (
                   <button
                     key={course.id}
@@ -689,25 +699,19 @@ export default function App() {
                     onClick={() => handleCourseSelect(course)}
                     disabled={!course.active_flow_id && !isAdmin}
                   >
-                    <div className="course-card-top">
-                      <div className="course-card-icon">📚</div>
-                      <span className="course-card-pill">
-                        {course.id.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="course-card-title">{course.name}</div>
-                    <div className="course-card-subtitle">
-                      {isAdmin ? "Click to manage course" : "Click to view course"}
-                    </div>
-                    <div className="course-card-divider" />
-                    <div className="course-card-meta">
-                      <div className="course-meta-item">
-                        <span className="course-meta-icon">👥</span>
-                        <span>{studentCount}</span>
+                    <div
+                      className="course-card-media"
+                      style={{
+                        background: `linear-gradient(135deg, hsl(${coverHue} 70% 80%), hsl(${coverHue} 60% 65%))`
+                      }}
+                    />
+                    <div className="course-card-body">
+                      <div className="course-card-header">
+                        <div className="course-card-title">{course.name}</div>
+                        <span className="course-card-menu">⋮</span>
                       </div>
-                      <div className="course-meta-item">
-                        <span className="course-meta-icon">📄</span>
-                        <span>{flowCount}</span>
+                      <div className="course-card-subtitle">
+                        {course.subtitle || course.description || "Click to manage course"}
                       </div>
                     </div>
                   </button>
