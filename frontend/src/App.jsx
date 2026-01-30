@@ -4,6 +4,7 @@ import {
   adminApproveFlow,
   adminApproveSpec,
   adminCourseStudents,
+  adminCreateUsers,
   adminGenerateSpec,
   adminListUsers,
   adminSetCourseStudents,
@@ -48,6 +49,10 @@ export default function App() {
   const [adminCourseRosterId, setAdminCourseRosterId] = useState("");
   const [adminCourseStudentIds, setAdminCourseStudentIds] = useState([]);
   const [adminRosterStatus, setAdminRosterStatus] = useState("");
+  const [newStudentEmail, setNewStudentEmail] = useState("");
+  const [newStudentUsername, setNewStudentUsername] = useState("");
+  const [newStudentPassword, setNewStudentPassword] = useState("");
+  const [pendingStudents, setPendingStudents] = useState([]);
   const [courseStudentCounts, setCourseStudentCounts] = useState({});
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
@@ -491,6 +496,26 @@ export default function App() {
     }
     setAdminRosterStatus("");
     try {
+      if (pendingStudents.length > 0) {
+        await adminCreateUsers(adminToken || "", pendingStudents);
+        const usersData = await adminListUsers(adminToken || "");
+        setAdminUsers(usersData.users || []);
+        const createdIds = (usersData.users || [])
+          .filter((user) =>
+            pendingStudents.some(
+              (pending) =>
+                pending.username === user.username ||
+                (pending.email || "").toLowerCase() ===
+                  (user.email || "").toLowerCase()
+            )
+          )
+          .map((user) => user.id);
+        setAdminCourseStudentIds((prev) => Array.from(new Set([...prev, ...createdIds])));
+        setPendingStudents([]);
+        setNewStudentEmail("");
+        setNewStudentUsername("");
+        setNewStudentPassword("");
+      }
       const data = await adminSetCourseStudents(
         adminToken || "",
         adminCourseRosterId,
@@ -508,6 +533,25 @@ export default function App() {
     } catch (err) {
       setAdminRosterStatus(err.message);
     }
+  };
+
+  const handleAddPendingStudent = () => {
+    setAdminRosterStatus("");
+    if (!newStudentEmail || !newStudentUsername || !newStudentPassword) {
+      setAdminRosterStatus("Enter email, username, and password.");
+      return;
+    }
+    setPendingStudents((prev) => [
+      ...prev,
+      {
+        email: newStudentEmail.trim(),
+        username: newStudentUsername.trim(),
+        password: newStudentPassword
+      }
+    ]);
+    setNewStudentEmail("");
+    setNewStudentUsername("");
+    setNewStudentPassword("");
   };
 
   const handleAdminAuth = async (event) => {
@@ -797,6 +841,72 @@ export default function App() {
 
                 {rosterEditMode ? (
                   <div className="admin-edit">
+                    <div className="admin-block">
+                      <div className="admin-title">Add new student</div>
+                      <div className="admin-form">
+                        <div className="form-field">
+                          <label className="form-label">Email</label>
+                          <input
+                            className="form-input"
+                            type="email"
+                            value={newStudentEmail}
+                            onChange={(event) => setNewStudentEmail(event.target.value)}
+                            placeholder="name@example.com"
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label className="form-label">Username</label>
+                          <input
+                            className="form-input"
+                            type="text"
+                            value={newStudentUsername}
+                            onChange={(event) => setNewStudentUsername(event.target.value)}
+                            placeholder="username"
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label className="form-label">Password</label>
+                          <input
+                            className="form-input"
+                            type="password"
+                            value={newStudentPassword}
+                            onChange={(event) => setNewStudentPassword(event.target.value)}
+                            placeholder="temporary password"
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label className="form-label">&nbsp;</label>
+                          <button
+                            className="button-secondary"
+                            type="button"
+                            onClick={handleAddPendingStudent}
+                          >
+                            Add student
+                          </button>
+                        </div>
+                      </div>
+                      {pendingStudents.length > 0 && (
+                        <div className="pending-students">
+                          {pendingStudents.map((student, index) => (
+                            <div key={`${student.email}-${index}`} className="pending-row">
+                              <span>{student.username}</span>
+                              <span className="pending-email">{student.email}</span>
+                              <button
+                                className="link-button"
+                                type="button"
+                                onClick={() =>
+                                  setPendingStudents((prev) =>
+                                    prev.filter((_, idx) => idx !== index)
+                                  )
+                                }
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="admin-edit-actions">
                       <button
                         className="button-secondary"

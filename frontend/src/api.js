@@ -126,3 +126,10 @@ export function adminSetCourseStudents(token, courseId, studentIds) {
     body: JSON.stringify({ token, course_id: courseId, student_ids: studentIds })
   });
 }
+
+export function adminCreateUsers(token, users) {
+  return request("/admin/users/bulk", {
+    method: "POST",
+    body: JSON.stringify({ token, users })
+  });
+}

@@ -523,9 +523,10 @@ def admin_email_status(payload: AdminEmailStatusRequest) -> dict:
 
 
 @app.post("/admin/users/bulk")
-def admin_create_users(payload: AdminCreateUsersRequest) -> dict:
-    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
-        raise HTTPException(status_code=403, detail="Forbidden")
+def admin_create_users(
+    payload: AdminCreateUsersRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
     created = []
     errors = []
     for entry in payload.users:
