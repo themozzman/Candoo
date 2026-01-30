@@ -175,6 +175,10 @@ body {
   padding: 24px 32px 0;
 }
 
+.runner-toolbar {
+  padding-bottom: 12px;
+}
+
 .user-chip {
   display: flex;
   align-items: center;

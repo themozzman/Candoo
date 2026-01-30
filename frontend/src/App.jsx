@@ -535,13 +535,14 @@ export default function App() {
   return (
     <div className="app">
       {authChecked && authUser && viewMode === "runner" && (
-        <header className="app-header">
-          <div>
-            <h1 className="app-title">Guided Learning Flow Engine</h1>
-            <p className="app-subtitle">
-              Guided practice with instant feedback and step tracking.
-            </p>
-          </div>
+        <header className="app-header runner-toolbar">
+          <button
+            className="back-link"
+            type="button"
+            onClick={() => setViewMode(returnView)}
+          >
+            ← Back to courses
+          </button>
           <div className="user-chip">
             <span className="user-name">{authUser.username}</span>
             {isAdmin && <span className="user-role">Admin</span>}
@@ -1081,91 +1082,6 @@ export default function App() {
 
         {authChecked && authUser && viewMode === "runner" && (
           <section className="runner">
-            <div className="runner-header">
-              <div>
-                <h2 className="runner-title">Student Runner</h2>
-                <p className="runner-subtitle">
-                  Practice the selected course and answer each step.
-                </p>
-              </div>
-              <button
-                className="button-ghost"
-                type="button"
-                onClick={() => setViewMode(returnView)}
-              >
-                Back to courses
-              </button>
-            </div>
-
-            <div className="runner-grid">
-              <div className="card">
-                <h3 className="card-title">Session setup</h3>
-                <div className="form-field">
-                  <label className="form-label">Course</label>
-                  <input
-                    className="form-input"
-                    type="text"
-                    value={selectedCourse?.name || ""}
-                    disabled
-                  />
-                </div>
-                <div className="form-field">
-                  <label className="form-label">Flow ID</label>
-                  {courseFlows.length > 1 ? (
-                    <select
-                      className="form-select"
-                      value={selectedFlowId}
-                      onChange={(event) => setSelectedFlowId(event.target.value)}
-                    >
-                      {courseFlows.map((flow) => (
-                        <option key={flow.id} value={flow.id}>
-                          {flow.title} ({flow.id})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      className="form-input"
-                      type="text"
-                      value={selectedFlowId}
-                      disabled
-                    />
-                  )}
-                </div>
-                <div className="form-field">
-                  <label className="form-label">Student ID</label>
-                  <input
-                    className="form-input"
-                    type="text"
-                    value={studentId}
-                    onChange={(event) => setStudentId(event.target.value)}
-                    disabled
-                  />
-                </div>
-                <button
-                  className="button-primary"
-                  onClick={handleStart}
-                  disabled={!selectedFlowId}
-                >
-                  Start session
-                </button>
-              </div>
-
-              <div className="card">
-                <h3 className="card-title">Current flow</h3>
-                {activeFlow ? (
-                  <div className="flow-summary">
-                    <div className="flow-title">{activeFlow.title}</div>
-                    <div className="flow-statement">{activeFlow.statement}</div>
-                  </div>
-                ) : (
-                  <div className="flow-empty">
-                    Start a session to see the flow details here.
-                  </div>
-                )}
-              </div>
-            </div>
-
             <div className="card runner-step">
               <h3 className="card-title">Current step</h3>
               {currentStep ? (
