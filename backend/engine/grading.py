@@ -94,6 +94,16 @@ def _normalize_for_sympy(value: str) -> str:
     result = result.replace("√", "sqrt")
     result = re.sub(r"\s+", " ", result.strip())
     result = re.sub(
+        r"\b(sin|cos|tan|sec|csc|cot|ln|log)([a-zA-Z])\b",
+        r"\1(\2)",
+        result,
+    )
+    result = re.sub(
+        r"\b(sin|cos|tan|sec|csc|cot)([a-zA-Z])\^",
+        r"\1(\2)^",
+        result,
+    )
+    result = re.sub(
         r"∫\s*(.+?)\s*d([a-zA-Z])",
         r"Integral(\1, \2)",
         result,

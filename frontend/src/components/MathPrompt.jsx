@@ -1,0 +1,62 @@
+import React, { useMemo } from "react";
+import katex from "katex";
+
+const MATH_TRIGGER = /[=\^]|\\|sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi|π/i;
+
+function splitPrompt(prompt) {
+  if (!prompt) {
+    return { text: "", math: "" };
+  }
+  if (prompt.includes(":")) {
+    const [text, ...rest] = prompt.split(":");
+    return { text: `${text}:`, math: rest.join(":").trim() };
+  }
+  if (!MATH_TRIGGER.test(prompt)) {
+    return { text: prompt, math: "" };
+  }
+  const mathStart = prompt.search(MATH_TRIGGER);
+  if (mathStart <= 0) {
+    return { text: prompt, math: "" };
+  }
+  const text = prompt.slice(0, mathStart).trim();
+  const math = prompt.slice(mathStart).trim();
+  return { text: text ? `${text}` : "", math };
+}
+
+function normalizeMathText(rawMath) {
+  if (!rawMath) {
+    return "";
+  }
+  let cleaned = rawMath.replace(/[.]+$/g, "");
+  cleaned = cleaned.replace(/\s+and\s+/gi, ", ");
+  cleaned = cleaned.replace(/\s+/g, " ");
+  return cleaned;
+}
+
+export default function MathPrompt({ prompt }) {
+  const { text, math } = useMemo(() => splitPrompt(prompt), [prompt]);
+  const mathMarkup = useMemo(() => {
+    const cleaned = normalizeMathText(math);
+    if (!cleaned) {
+      return "";
+    }
+    return katex.renderToString(cleaned, {
+      throwOnError: false,
+      strict: false,
+      output: "html"
+    });
+  }, [math]);
+
+  return (
+    <div className="step-prompt">
+      {text && <div className="step-prompt-text">{text}</div>}
+      {mathMarkup && (
+        <div
+          className="step-prompt-math"
+          dangerouslySetInnerHTML={{ __html: mathMarkup }}
+        />
+      )}
+      {!text && !mathMarkup && prompt}
+    </div>
+  );
+}

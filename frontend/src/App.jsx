@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import "katex/dist/katex.min.css";
 import {
   adminApproveFlow,
   adminApproveSpec,

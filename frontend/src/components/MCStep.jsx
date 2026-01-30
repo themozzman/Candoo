@@ -1,9 +1,10 @@
 import React from "react";
+import MathPrompt from "./MathPrompt.jsx";
 
 export default function MCStep({ step, onAnswer, onSkip }) {
   return (
     <div className="step">
-      <div className="step-prompt">{step.prompt}</div>
+      <MathPrompt prompt={step.prompt} />
       <div className="step-options">
         {step.options.map((option) => (
           <button

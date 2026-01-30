@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import MathPrompt from "./MathPrompt.jsx";
 
 const BASE_KEYS = [
   ["7", "8", "9", { label: "÷", value: "/", alt: ["÷", "/"] }],
@@ -127,7 +128,7 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
 
   return (
     <form className="step" onSubmit={handleSubmit}>
-      <div className="step-prompt">{step.prompt}</div>
+      <MathPrompt prompt={step.prompt} />
       <input
         className="step-input"
         type="text"

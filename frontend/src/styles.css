@@ -1223,6 +1223,22 @@ body {
   font-size: 15px;
   font-weight: 600;
   color: #0f172a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.step-prompt-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.step-prompt-math {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0f172a;
 }
 
 .step-options {
