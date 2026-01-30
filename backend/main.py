@@ -255,6 +255,14 @@ def is_admin_user(user: dict) -> bool:
     )
 
 
+def _require_admin_or_flow_token(token: str, user: dict) -> None:
+    if token and ADMIN_FLOW_TOKEN and token == ADMIN_FLOW_TOKEN:
+        return
+    if user and is_admin_user(user):
+        return
+    raise HTTPException(status_code=403, detail="Forbidden")
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -539,16 +547,18 @@ def admin_create_users(payload: AdminCreateUsersRequest) -> dict:
 
 
 @app.post("/admin/users/list")
-def admin_list_users(payload: AdminUsersRequest) -> dict:
-    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
-        raise HTTPException(status_code=403, detail="Forbidden")
+def admin_list_users(
+    payload: AdminUsersRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
     return {"users": list_users(DB_PATH)}
 
 
 @app.post("/admin/courses/students")
-def admin_course_students(payload: AdminCourseStudentsRequest) -> dict:
-    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
-        raise HTTPException(status_code=403, detail="Forbidden")
+def admin_course_students(
+    payload: AdminCourseStudentsRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
     course = get_course(DB_PATH, payload.course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
@@ -557,9 +567,10 @@ def admin_course_students(payload: AdminCourseStudentsRequest) -> dict:
 
 
 @app.post("/admin/courses/students/set")
-def admin_course_students_set(payload: AdminCourseStudentsSetRequest) -> dict:
-    if not ADMIN_FLOW_TOKEN or payload.token != ADMIN_FLOW_TOKEN:
-        raise HTTPException(status_code=403, detail="Forbidden")
+def admin_course_students_set(
+    payload: AdminCourseStudentsSetRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
     course = get_course(DB_PATH, payload.course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")

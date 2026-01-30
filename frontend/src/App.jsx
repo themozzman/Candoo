@@ -129,25 +129,20 @@ export default function App() {
   }, [courses, adminCourseRosterId]);
 
   useEffect(() => {
-    if (!isAdmin || viewMode !== "admin-course" || !adminTokenReady) {
+    if (!isAdmin || viewMode !== "admin-course" || !rosterEditMode) {
       return;
     }
-    adminListUsers(adminToken)
+    adminListUsers(adminToken || "")
       .then((data) => setAdminUsers(data.users || []))
       .catch((err) => setAdminRosterStatus(err.message));
-  }, [isAdmin, viewMode, adminTokenReady, adminToken]);
+  }, [isAdmin, viewMode, rosterEditMode, adminToken]);
 
   useEffect(() => {
-    if (
-      !isAdmin ||
-      viewMode !== "admin-course" ||
-      !adminTokenReady ||
-      !adminCourseRosterId
-    ) {
+    if (!isAdmin || viewMode !== "admin-course" || !adminCourseRosterId) {
       return;
     }
     handleAdminLoadRoster();
-  }, [isAdmin, viewMode, adminTokenReady, adminCourseRosterId]);
+  }, [isAdmin, viewMode, adminCourseRosterId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -467,7 +462,7 @@ export default function App() {
     }
     setAdminRosterStatus("");
     try {
-      const data = await adminCourseStudents(adminToken, adminCourseRosterId);
+      const data = await adminCourseStudents(adminToken || "", adminCourseRosterId);
       const assigned = (data.students || []).map((student) => student.id);
       setAdminCourseStudentIds(assigned);
       setCourseStudentCounts((prev) => ({
@@ -496,7 +491,7 @@ export default function App() {
     setAdminRosterStatus("");
     try {
       const data = await adminSetCourseStudents(
-        adminToken,
+        adminToken || "",
         adminCourseRosterId,
         adminCourseStudentIds
       );
@@ -773,28 +768,6 @@ export default function App() {
               </button>
             </div>
 
-            {!adminTokenReady && (
-              <div className="token-card">
-                <div className="token-title">Admin access required</div>
-                <form className="token-form" onSubmit={handleAdminAuth}>
-                  <input
-                    className="token-input"
-                    type="password"
-                    value={adminToken}
-                    onChange={(event) => {
-                      setAdminToken(event.target.value);
-                      setAdminTokenReady(false);
-                    }}
-                    placeholder="Enter admin token"
-                    required
-                  />
-                  <button className="token-button" type="submit">
-                    Unlock
-                  </button>
-                </form>
-              </div>
-            )}
-
             {adminTab === "students" && (
               <div className="admin-panel-card">
                 <div className="admin-panel-header">
@@ -811,7 +784,6 @@ export default function App() {
                       setRosterEditMode(true);
                       handleAdminLoadRoster();
                     }}
-                    disabled={!adminTokenReady}
                   >
                     Add Student
                   </button>
@@ -896,23 +868,126 @@ export default function App() {
             )}
 
             {adminTab === "quizzes" && (
-              <div className="admin-panel-card">
-                <div className="admin-panel-header">
-                  <div className="admin-panel-title">Published Quizzes</div>
+              <div className="admin-panel-stack">
+                <div className="admin-panel-card">
+                  <div className="admin-panel-header">
+                    <div className="admin-panel-title">Published Quizzes</div>
+                  </div>
+                  <div className="quiz-list">
+                    {courseFlows.length === 0 ? (
+                      <div className="admin-empty">No quizzes published yet.</div>
+                    ) : (
+                      courseFlows.map((flow) => (
+                        <div key={flow.id} className="quiz-row">
+                          <div className="quiz-title">{flow.title}</div>
+                          <button className="quiz-button" type="button">
+                            View Reports
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <div className="quiz-list">
-                  {courseFlows.length === 0 ? (
-                    <div className="admin-empty">No quizzes published yet.</div>
-                  ) : (
-                    courseFlows.map((flow) => (
-                      <div key={flow.id} className="quiz-row">
-                        <div className="quiz-title">{flow.title}</div>
-                        <button className="quiz-button" type="button">
-                          View Reports
-                        </button>
+
+                <div className="admin-panel-card">
+                  <div className="admin-panel-header">
+                    <div className="admin-panel-title">Generate New Quiz</div>
+                  </div>
+                  <div className="admin-panel-body">
+                    {!adminTokenReady ? (
+                      <div className="token-card">
+                        <div className="token-title">Flow token required</div>
+                        <form className="token-form" onSubmit={handleAdminAuth}>
+                          <input
+                            className="token-input"
+                            type="password"
+                            value={adminToken}
+                            onChange={(event) => {
+                              setAdminToken(event.target.value);
+                              setAdminTokenReady(false);
+                            }}
+                            placeholder="Enter flow token"
+                            required
+                          />
+                          <button className="token-button" type="submit">
+                            Unlock
+                          </button>
+                        </form>
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      <div className="admin-block">
+                        <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
+                          <div className="form-field">
+                            <label className="form-label">Course</label>
+                            <select
+                              className="form-select"
+                              value={adminCourseId || selectedCourseId}
+                              onChange={(event) => setAdminCourseId(event.target.value)}
+                            >
+                              {courseOptions}
+                            </select>
+                          </div>
+                          <div className="form-field">
+                            <label className="form-label">Topic</label>
+                            <input
+                              className="form-input"
+                              type="text"
+                              value={adminTopic}
+                              onChange={(event) => setAdminTopic(event.target.value)}
+                              placeholder="e.g. Trigonometric derivatives"
+                              required
+                            />
+                          </div>
+                          <div className="form-field">
+                            <label className="form-label">&nbsp;</label>
+                            <button className="button-primary" type="submit">
+                              Generate spec
+                            </button>
+                          </div>
+                        </form>
+
+                        {adminStatus && <div className="admin-status">{adminStatus}</div>}
+
+                        {adminSpecId && (
+                          <div className="admin-block">
+                            <div className="admin-title">Spec JSON</div>
+                            <textarea
+                              className="admin-textarea"
+                              rows={8}
+                              value={adminSpecText}
+                              onChange={(event) => setAdminSpecText(event.target.value)}
+                            />
+                            <button
+                              className="button-secondary"
+                              type="button"
+                              onClick={handleAdminApproveSpec}
+                            >
+                              Approve spec → Generate flow
+                            </button>
+                          </div>
+                        )}
+
+                        {adminFlowId && (
+                          <div className="admin-block">
+                            <div className="admin-title">Flow JSON</div>
+                            <textarea
+                              className="admin-textarea"
+                              rows={10}
+                              value={adminFlowText}
+                              onChange={(event) => setAdminFlowText(event.target.value)}
+                            />
+                            <button
+                              className="button-primary"
+                              type="button"
+                              onClick={handleAdminApproveFlow}
+                            >
+                              Publish quiz
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

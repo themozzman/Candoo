@@ -914,6 +914,12 @@ body {
   overflow: hidden;
 }
 
+.admin-panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .admin-panel-header {
   background: #1f2a37;
   color: #ffffff;
@@ -922,6 +928,13 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.admin-panel-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .admin-panel-title {
