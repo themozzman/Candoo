@@ -5,6 +5,7 @@ import {
   adminApproveSpec,
   adminCourseStudents,
   adminCreateUsers,
+  adminDeleteUser,
   adminGenerateSpec,
   adminListUsers,
   adminSetCourseStudents,
@@ -558,6 +559,28 @@ export default function App() {
     setNewStudentPassword("");
   };
 
+  const handleAdminDeleteUser = async (username) => {
+    if (!username) {
+      return;
+    }
+    const confirmDelete = window.confirm(
+      `Delete ${username}? This removes their enrollments and account.`
+    );
+    if (!confirmDelete) {
+      return;
+    }
+    setAdminRosterStatus("");
+    try {
+      await adminDeleteUser(adminToken || "", username);
+      await handleAdminLoadRoster();
+      const usersData = await adminListUsers(adminToken || "");
+      setAdminUsers(usersData.users || []);
+      setAdminRosterStatus(`${username} deleted.`);
+    } catch (err) {
+      setAdminRosterStatus(err.message);
+    }
+  };
+
   const handleAdminAuth = async (event) => {
     event.preventDefault();
     setAdminRosterStatus("");
@@ -934,26 +957,44 @@ export default function App() {
                       {adminUsers.length === 0 ? (
                         <div className="admin-empty">No students found.</div>
                       ) : (
-                        adminUsers.map((student) => (
-                          <label key={student.id} className="student-row">
-                            <input
-                              type="checkbox"
-                              checked={adminCourseStudentIds.includes(student.id)}
-                              onChange={() => toggleStudentAssignment(student.id)}
-                            />
-                            <div>
-                              <div className="student-name">
-                                {student.username}
+                        adminUsers.map((student) => {
+                          const isSelf = student.username === authUser?.username;
+                          return (
+                            <label key={student.id} className="student-row">
+                              <input
+                                type="checkbox"
+                                checked={adminCourseStudentIds.includes(student.id)}
+                                onChange={() => toggleStudentAssignment(student.id)}
+                              />
+                              <div>
+                                <div className="student-name">
+                                  {student.username}
+                                </div>
+                                <div className="student-email">
+                                  {student.email || "no email"}
+                                </div>
                               </div>
-                              <div className="student-email">
-                                {student.email || "no email"}
+                              <div className="student-actions">
+                                {adminEmails.includes(
+                                  (student.email || "").toLowerCase()
+                                ) && <span className="student-badge">Admin</span>}
+                                <button
+                                  className="student-delete"
+                                  type="button"
+                                  onClick={() => handleAdminDeleteUser(student.username)}
+                                  disabled={isSelf}
+                                  title={
+                                    isSelf
+                                      ? "You cannot delete your own account."
+                                      : "Delete user"
+                                  }
+                                >
+                                  Delete
+                                </button>
                               </div>
-                            </div>
-                            {adminEmails.includes(
-                              (student.email || "").toLowerCase()
-                            ) && <span className="student-badge">Admin</span>}
-                          </label>
-                        ))
+                            </label>
+                          );
+                        })
                       )}
                     </div>
                   </div>

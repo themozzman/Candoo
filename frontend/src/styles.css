@@ -1022,6 +1022,28 @@ body {
   background: #f9fafb;
 }
 
+.student-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.student-delete {
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+  color: #b91c1c;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.student-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .student-row:last-child {
   border-bottom: none;
 }

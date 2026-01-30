@@ -133,3 +133,10 @@ export function adminCreateUsers(token, users) {
     body: JSON.stringify({ token, users })
   });
 }
+
+export function adminDeleteUser(token, username) {
+  return request("/admin/users/delete", {
+    method: "POST",
+    body: JSON.stringify({ token, username })
+  });
+}
