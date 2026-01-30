@@ -64,8 +64,12 @@ export default function App() {
   const [returnView, setReturnView] = useState("catalog");
 
   const adminEmails = ["andrestoussieh3@gmail.com"];
-  const isAdmin =
-    authUser?.email && adminEmails.includes(authUser.email.toLowerCase());
+  const adminUsernames = ["andrestoussieh"];
+  const isAdmin = Boolean(
+    (authUser?.email && adminEmails.includes(authUser.email.toLowerCase())) ||
+      (authUser?.username &&
+        adminUsernames.includes(authUser.username.toLowerCase()))
+  );
 
   const loadCourses = (preserveSelection = true) => {
     fetchCourses()

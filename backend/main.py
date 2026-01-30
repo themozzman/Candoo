@@ -79,6 +79,11 @@ ADMIN_EMAILS = [
     for email in os.environ.get("ADMIN_EMAILS", "").split(",")
     if email.strip()
 ]
+ADMIN_USERNAMES = [
+    username.strip().lower()
+    for username in os.environ.get("ADMIN_USERNAMES", "andrestoussieh").split(",")
+    if username.strip()
+]
 COOKIE_NAME = "session_token"
 CORS_ORIGINS = [
     origin.strip()
@@ -244,7 +249,10 @@ def get_current_user(request: Request) -> dict:
 
 def is_admin_user(user: dict) -> bool:
     email = (user.get("email") or "").lower()
-    return bool(email) and email in ADMIN_EMAILS
+    username = (user.get("username") or "").lower()
+    return (bool(email) and email in ADMIN_EMAILS) or (
+        bool(username) and username in ADMIN_USERNAMES
+    )
 
 
 @app.get("/health")
