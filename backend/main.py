@@ -296,8 +296,10 @@ def session_start(payload: StartSessionRequest, user: dict = Depends(get_current
 def submit(
     session_id: str,
     payload: SubmitRequest,
+    request: Request,
     user: dict = Depends(get_current_user),
 ) -> dict:
+    _rate_limit(request, "submit")
     flows = app.state.flows
     for flow in flows.values():
         try:

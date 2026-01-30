@@ -307,6 +307,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
 }
 
 .math-keyboard-grid {
@@ -326,6 +327,12 @@ body {
   gap: 8px;
 }
 
+.math-alt-panel {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .math-function-panel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
@@ -342,6 +349,9 @@ body {
   color: #0f172a;
   cursor: pointer;
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .math-keyboard-key:hover {
@@ -355,6 +365,26 @@ body {
 
 .math-keyboard-toggle:hover {
   background: #1e293b;
+}
+
+@media (max-width: 720px) {
+  .math-keyboard {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .math-keyboard-grid {
+    gap: 6px;
+  }
+
+  .math-keyboard-key {
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  .math-function-panel {
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  }
 }
 
 .form-input:disabled {

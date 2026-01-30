@@ -1,9 +1,9 @@
 import React, { useRef, useState } from "react";
 
 const BASE_KEYS = [
-  ["7", "8", "9", { label: "÷", value: "/" }],
-  ["4", "5", "6", { label: "×", value: "*" }],
-  ["1", "2", "3", "-"],
+  ["7", "8", "9", { label: "÷", value: "/", alt: ["÷", "/"] }],
+  ["4", "5", "6", { label: "×", value: "*", alt: ["×", "*", "·"] }],
+  ["1", "2", "3", { label: "−", value: "-", alt: ["−", "-"] }],
   ["0", ".", "=", "+"]
 ];
 
@@ -32,10 +32,15 @@ const FUNCTION_KEYS = [
   { label: "nth root", value: "root(" }
 ];
 
+const LONG_PRESS_MS = 450;
+
 export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = false }) {
   const [value, setValue] = useState("");
   const [showFunctions, setShowFunctions] = useState(false);
+  const [altOptions, setAltOptions] = useState(null);
   const inputRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const didLongPressRef = useRef(false);
 
   const getSelection = () => {
     const input = inputRef.current;
@@ -62,6 +67,7 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
   const insertText = (text) => {
     const { start, end } = getSelection();
     const nextValue = `${value.slice(0, start)}${text}${value.slice(end)}`;
+    setAltOptions(null);
     updateValue(nextValue, start + text.length);
   };
 
@@ -80,7 +86,38 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
   };
 
   const clearValue = () => {
+    setAltOptions(null);
     updateValue("", 0);
+  };
+
+  const startLongPress = (key) => {
+    if (!key?.alt) {
+      return;
+    }
+    didLongPressRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      didLongPressRef.current = true;
+      setAltOptions(key.alt);
+    }, LONG_PRESS_MS);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleKeyClick = (key) => {
+    if (didLongPressRef.current) {
+      didLongPressRef.current = false;
+      return;
+    }
+    insertText(key.value);
+  };
+
+  const handleAltInsert = (option) => {
+    insertText(option);
   };
 
   const handleSubmit = (event) => {
@@ -108,13 +145,31 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
                   key={key.label}
                   type="button"
                   className="math-keyboard-key"
-                  onClick={() => insertText(key.value)}
+                  onClick={() => handleKeyClick(key)}
+                  onPointerDown={() => startLongPress(key)}
+                  onPointerUp={cancelLongPress}
+                  onPointerLeave={cancelLongPress}
+                  onPointerCancel={cancelLongPress}
                 >
                   {key.label}
                 </button>
               );
             })}
           </div>
+          {altOptions && (
+            <div className="math-alt-panel">
+              {altOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="math-keyboard-key"
+                  onClick={() => handleAltInsert(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="math-keyboard-strip">
             {EXTRA_KEYS.map((key) => (
               <button

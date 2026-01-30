@@ -5,8 +5,18 @@ from uuid import uuid4
 from pathlib import Path
 
 from .analytics import log_attempt, write_report_snapshot
-from .grading import grade_mc, grade_sa
+import logging
 
+from .grading import grade_mc, grade_sa_detail
+
+logger = logging.getLogger(__name__)
+
+PARSE_FEEDBACK = {
+    "too_long": "Your answer is too long. Try a simpler, equivalent expression.",
+    "invalid_chars": "We could not parse that. Use standard math symbols like +, -, *, /, ^.",
+    "too_complex": "That expression is too complex to grade. Try a simpler form.",
+    "parse_error": "We could not parse that. Try standard math notation like 2*x or sqrt(x).",
+}
 
 def start_session(flow: dict, student_id: str, db_path: str) -> tuple[str, dict]:
     session_id = str(uuid4())
@@ -61,11 +71,16 @@ def submit_answer(
 
     attempt_number = _count_attempts(db_path, session_id, step_id) + 1
     correct = False
+    grading_issue = None
     if not skipped:
         if step["type"] == "MC":
             correct = grade_mc(response, step["answer"]["value"])
         else:
-            correct = grade_sa(response, step["answer"]["values"], step["answer"].get("normalize", []))
+            correct, grading_issue = grade_sa_detail(
+                response,
+                step["answer"]["values"],
+                step["answer"].get("normalize", []),
+            )
 
     next_step_id = _next_step_id(step, correct, skipped)
     log_attempt(
@@ -101,7 +116,18 @@ def submit_answer(
             reveal = True
             correct_answer = _correct_answer(step)
 
-    feedback = step["feedback"]["explanation"] if correct else step["feedback"]["wrongHint"]
+    if not correct and grading_issue:
+        feedback = PARSE_FEEDBACK.get(grading_issue, step["feedback"]["wrongHint"])
+        logger.info(
+            "SA grading issue",
+            extra={
+                "flow_id": flow["id"],
+                "step_id": step_id,
+                "issue": grading_issue,
+            },
+        )
+    else:
+        feedback = step["feedback"]["explanation"] if correct else step["feedback"]["wrongHint"]
 
     next_step = flow["steps"].get(next_step_id) if next_step_id else None
     return {
@@ -109,6 +135,7 @@ def submit_answer(
         "reveal": reveal,
         "feedback": feedback,
         "correctAnswer": correct_answer if reveal else None,
+        "gradingIssue": grading_issue,
         "next_step": _step_payload(next_step) if next_step else None,
     }
 
