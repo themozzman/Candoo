@@ -51,13 +51,26 @@ def _create_user(
     now = _now_iso()
     conn = sqlite3.connect(db_path)
     try:
-        conn.execute(
-            """
-            INSERT INTO users (username, email, password_hash, created_at, verified_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (username, email, password_hash, now, verified_at),
-        )
+        try:
+            conn.execute(
+                """
+                INSERT INTO users (username, email, password_hash, created_at, verified_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (username, email, password_hash, now, verified_at),
+            )
+        except sqlite3.OperationalError as exc:
+            if "no such column: email" in str(exc):
+                _ensure_users_email_column(conn)
+                conn.execute(
+                    """
+                    INSERT INTO users (username, email, password_hash, created_at, verified_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (username, email, password_hash, now, verified_at),
+                )
+            else:
+                raise
         conn.commit()
         user = conn.execute(
             "SELECT id, username, email, created_at, verified_at FROM users WHERE username = ?",
@@ -74,6 +87,14 @@ def _create_user(
         raise AuthError("Username or email already exists") from exc
     finally:
         conn.close()
+
+
+def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "email" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if "verified_at" not in columns:
+        conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
 
 
 def get_user_by_username(db_path: str, username: str) -> dict | None:
