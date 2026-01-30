@@ -14,6 +14,7 @@ from engine.analytics import (
     get_course,
     get_teacher_report,
     init_db,
+    delete_user,
     list_courses,
     list_courses_for_user,
     list_course_students,
@@ -181,6 +182,11 @@ class AdminCreateUsersRequest(BaseModel):
 
 class AdminUsersRequest(BaseModel):
     token: str
+
+
+class AdminUserDeleteRequest(BaseModel):
+    token: str
+    username: str
 
 
 class AdminCourseStudentsRequest(BaseModel):
@@ -553,6 +559,20 @@ def admin_list_users(
 ) -> dict:
     _require_admin_or_flow_token(payload.token, user)
     return {"users": list_users(DB_PATH)}
+
+
+@app.post("/admin/users/delete")
+def admin_delete_user(
+    payload: AdminUserDeleteRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    username = (payload.username or "").strip()
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+    deleted = delete_user(DB_PATH, username)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"deleted": deleted}
 
 
 @app.post("/admin/courses/students")

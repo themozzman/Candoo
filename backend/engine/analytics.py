@@ -544,6 +544,66 @@ def reset_flow_data(db_path: str) -> None:
         conn.close()
 
 
+def delete_user(db_path: str, username: str) -> dict | None:
+    conn = sqlite3.connect(db_path)
+    try:
+        user_row = conn.execute(
+            "SELECT id, username FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+        if not user_row:
+            return None
+        user_id, username_value = user_row
+        tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+        deleted = {"user_id": user_id, "username": username_value}
+
+        if "auth_sessions" in tables:
+            deleted["auth_sessions"] = conn.execute(
+                "DELETE FROM auth_sessions WHERE user_id = ?",
+                (user_id,),
+            ).rowcount
+        if "user_courses" in tables:
+            deleted["user_courses"] = conn.execute(
+                "DELETE FROM user_courses WHERE user_id = ?",
+                (user_id,),
+            ).rowcount
+        if "password_resets" in tables:
+            deleted["password_resets"] = conn.execute(
+                "DELETE FROM password_resets WHERE user_id = ?",
+                (user_id,),
+            ).rowcount
+        if "email_verifications" in tables:
+            deleted["email_verifications"] = conn.execute(
+                "DELETE FROM email_verifications WHERE user_id = ?",
+                (user_id,),
+            ).rowcount
+        if "attempts" in tables:
+            deleted["attempts"] = conn.execute(
+                "DELETE FROM attempts WHERE student_id = ?",
+                (username_value,),
+            ).rowcount
+        if "sessions" in tables:
+            deleted["sessions"] = conn.execute(
+                "DELETE FROM sessions WHERE student_id = ?",
+                (username_value,),
+            ).rowcount
+
+        deleted["users"] = conn.execute(
+            "DELETE FROM users WHERE id = ?",
+            (user_id,),
+        ).rowcount
+        conn.commit()
+        return deleted
+    finally:
+        conn.close()
+
+
 def log_attempt(
     db_path: str,
     session_id: str,
