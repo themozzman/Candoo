@@ -86,7 +86,15 @@ _MATH_TRANSFORMS = standard_transformations + (
 def _normalize_for_sympy(value: str) -> str:
     if not value:
         return ""
-    result = value
+    result = value.strip()
+    if "=" in result:
+        result = result.split("=")[-1].strip()
+    result = re.sub(
+        r"^\s*[a-zA-Z]\s*['′]?\s*\(\s*[a-zA-Z]\s*\)\s*",
+        "",
+        result,
+    )
+    result = re.sub(r"^\s*[a-zA-Z]\s*['′]?\s*=\s*", "", result)
     result = result.replace("−", "-")
     result = result.replace("×", "*").replace("·", "*")
     result = result.replace("÷", "/")
