@@ -387,15 +387,8 @@ export default function App() {
     }
   };
 
-  const isSpecificAnswer = useMemo(() => {
-    if (!currentStep || currentStep.type !== "SA") {
-      return false;
-    }
-    return /identify the error|spot the error/i.test(currentStep.prompt || "");
-  }, [currentStep]);
-
   useEffect(() => {
-    if (!result?.analysisPending || !sessionId || !currentStep || !isSpecificAnswer) {
+    if (!result?.analysisPending || !sessionId || !currentStep) {
       return;
     }
     setAnalysisLoading(true);
@@ -417,7 +410,7 @@ export default function App() {
         );
       })
       .finally(() => setAnalysisLoading(false));
-  }, [result?.analysisPending, sessionId, currentStep?.id, isSpecificAnswer]);
+  }, [result?.analysisPending, sessionId, currentStep?.id]);
 
   const handleAdvanceNow = () => {
     if (!pendingNextStep || !currentStep) {
@@ -1461,7 +1454,7 @@ export default function App() {
                     result={result}
                     solution={currentStep.solution}
                     analysisLoading={analysisLoading}
-                    showAttemptAnalysis={isSpecificAnswer}
+                    showAttemptAnalysis={currentStep.type === "SA"}
                   />
                   {result?.correct && pendingNextStep && (
                     <button
