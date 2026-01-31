@@ -128,7 +128,9 @@ def submit_answer(
         reports_dir=reports_dir,
     )
 
-    if not correct and grading_issue:
+    if skipped:
+        feedback = "Skipped."
+    elif not correct and grading_issue:
         feedback = PARSE_FEEDBACK.get(grading_issue, step["feedback"]["wrongHint"])
         logger.info(
             "SA grading issue",
@@ -144,6 +146,7 @@ def submit_answer(
     next_step = flow["steps"].get(next_step_id) if next_step_id else None
     return {
         "correct": bool(correct),
+        "skipped": bool(skipped),
         "reveal": reveal,
         "feedback": feedback,
         "correctAnswer": correct_answer if reveal else None,
@@ -270,7 +273,7 @@ def _count_attempts(db_path: str, session_id: str, step_id: str) -> int:
         row = conn.execute(
             """
             SELECT COUNT(*) FROM attempts
-            WHERE session_id = ? AND step_id = ?
+            WHERE session_id = ? AND step_id = ? AND skipped = 0
             """,
             (session_id, step_id),
         ).fetchone()

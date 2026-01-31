@@ -355,6 +355,14 @@ export default function App() {
       });
       setResult(data);
       setAnalysisLoading(false);
+      if (data.skipped && data.next_step) {
+        setCurrentStep(data.next_step);
+        setStepStartTs(Date.now());
+        setResult(null);
+        setPendingNextStep(null);
+        setFinishReady(false);
+        return;
+      }
       const nextStep = data.next_step;
       const revealNextStep = data.revealNextStep;
       const advance = () => {

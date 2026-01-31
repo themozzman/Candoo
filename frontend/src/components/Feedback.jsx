@@ -7,7 +7,7 @@ export default function Feedback({
   analysisLoading = false,
   showAttemptAnalysis = false
 }) {
-  if (!result) {
+  if (!result || result.skipped) {
     return null;
   }
 
