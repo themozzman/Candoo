@@ -654,6 +654,34 @@ def log_attempt(
         conn.close()
 
 
+def get_recent_attempts(
+    db_path: str,
+    session_id: str,
+    step_id: str,
+    limit: int = 2,
+) -> list[dict]:
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT attempt_number, response
+            FROM attempts
+            WHERE session_id = ? AND step_id = ? AND skipped = 0
+              AND response IS NOT NULL AND response != ''
+            ORDER BY attempt_number DESC
+            LIMIT ?
+            """,
+            (session_id, step_id, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+    attempts = [
+        {"attempt_number": row[0], "response": row[1]}
+        for row in reversed(rows)
+    ]
+    return attempts
+
+
 def write_report_snapshot(db_path: str, flow: dict, reports_dir: Path) -> None:
     steps = [flow["steps"][step_id] for step_id in flow["steps"].keys()]
     report = get_teacher_report(db_path, flow["id"], steps)

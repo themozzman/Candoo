@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import MathPrompt from "./MathPrompt.jsx";
 
 const KEYBOARD_TABS = [
@@ -89,9 +89,15 @@ export default function SAStep({
   onAnswer,
   onSkip,
   showMathKeyboard = false,
-  disabled = false
+  disabled = false,
+  revealedAnswer = ""
 }) {
   const [value, setValue] = useState("");
+  useEffect(() => {
+    if (revealedAnswer) {
+      setValue(revealedAnswer);
+    }
+  }, [revealedAnswer]);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
   const inputRef = useRef(null);
@@ -160,7 +166,7 @@ export default function SAStep({
         </div>
       )}
       <input
-        className="step-input"
+        className={`step-input${revealedAnswer ? " step-input-reveal" : ""}`}
         type="text"
         ref={inputRef}
         value={value}

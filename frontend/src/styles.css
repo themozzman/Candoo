@@ -323,6 +323,13 @@ body {
   background: #f8fafc;
 }
 
+.step-input-reveal {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .math-keyboard-toggle-row {
   display: flex;
   justify-content: flex-end;
@@ -1782,6 +1789,55 @@ body {
 
 .feedback-answer {
   color: inherit;
+}
+
+.feedback-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(185, 28, 28, 0.25);
+}
+
+.feedback-attempt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feedback-attempt-title {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.feedback-attempt-answer {
+  font-weight: 600;
+}
+
+.feedback-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.feedback-section-title {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.feedback-steps {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.feedback-why {
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .feedback-status {

@@ -87,6 +87,38 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     return flow
 
 
+def generate_attempt_feedback(
+    question: str,
+    correct_answer: str,
+    attempt: str,
+    attempt_number: int,
+) -> dict:
+    client = _client()
+    prompt = (
+        "You are a helpful math tutor. Return ONLY valid JSON.\n\n"
+        "Input:\n"
+        f"Question: {question}\n"
+        f"Correct answer: {correct_answer}\n"
+        f"Student attempt (Attempt {attempt_number}): {attempt}\n\n"
+        "Tasks:\n"
+        "1) Explain how to get the correct answer step-by-step.\n"
+        "2) Explain specifically why the student's attempt is wrong.\n\n"
+        "Return JSON with keys:\n"
+        '- steps: array of short strings\n'
+        '- why_wrong: string\n'
+    )
+    data = _json_response(client, prompt)
+    if not isinstance(data, dict):
+        raise AIFlowError("Attempt feedback response must be a JSON object")
+    steps = data.get("steps")
+    why_wrong = data.get("why_wrong")
+    if not isinstance(steps, list):
+        steps = []
+    if not isinstance(why_wrong, str):
+        why_wrong = ""
+    return {"steps": steps, "why_wrong": why_wrong}
+
+
 def _client() -> OpenAI:
     key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not key:

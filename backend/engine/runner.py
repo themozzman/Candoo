@@ -4,7 +4,8 @@ from uuid import uuid4
 
 from pathlib import Path
 
-from .analytics import log_attempt, write_report_snapshot
+from .analytics import get_recent_attempts, log_attempt, write_report_snapshot
+from .ai_generation import AIFlowError, generate_attempt_feedback
 import logging
 
 from .grading import grade_mc, grade_sa_detail
@@ -110,11 +111,36 @@ def submit_answer(
 
     reveal = False
     correct_answer = None
+    correction_help = None
     if not correct and not skipped:
         reveal_after = step["attemptPolicy"]["revealAfter"]
         if attempt_number >= reveal_after:
             reveal = True
             correct_answer = _correct_answer(step)
+            attempts = get_recent_attempts(db_path, session_id, step_id, limit=2)
+            if attempts:
+                correction_help = []
+                for attempt in attempts:
+                    try:
+                        ai_feedback = generate_attempt_feedback(
+                            question=step.get("prompt", ""),
+                            correct_answer=correct_answer or "",
+                            attempt=attempt["response"],
+                            attempt_number=attempt["attempt_number"],
+                        )
+                    except AIFlowError:
+                        ai_feedback = {
+                            "steps": [],
+                            "why_wrong": "We couldn't generate a detailed explanation right now.",
+                        }
+                    correction_help.append(
+                        {
+                            "attempt_number": attempt["attempt_number"],
+                            "response": attempt["response"],
+                            "steps": ai_feedback.get("steps", []),
+                            "why_wrong": ai_feedback.get("why_wrong", ""),
+                        }
+                    )
 
     if not correct and grading_issue:
         feedback = PARSE_FEEDBACK.get(grading_issue, step["feedback"]["wrongHint"])
@@ -135,6 +161,7 @@ def submit_answer(
         "reveal": reveal,
         "feedback": feedback,
         "correctAnswer": correct_answer if reveal else None,
+        "correctionHelp": correction_help,
         "gradingIssue": grading_issue,
         "next_step": _step_payload(next_step) if next_step else None,
     }
