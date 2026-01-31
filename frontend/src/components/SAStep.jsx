@@ -6,16 +6,15 @@ const KEYBOARD_TABS = [
     id: "basic",
     label: "Basic",
     keys: [
-      { label: "x²", insert: "x²" },
-      { label: "x^", insert: "x^" },
-      { label: "√", insert: "√(" },
-      { label: "∛", insert: "∛(" },
+      { label: "x²", action: "power2" },
+      { label: "xⁿ", action: "powerN" },
+      { label: "ⁿ√", action: "nthRoot" },
       { label: "÷", insert: "÷" },
       { label: "log", insert: "log(" },
       { label: "π", insert: "π" },
       { label: "θ", insert: "θ" },
       { label: "∞", insert: "∞" },
-      { label: "∫", insert: "∫" },
+      { label: "∫a^b", action: "boundedIntegral" },
       { label: "d/dx", insert: "d/dx" },
       { label: "≥", insert: "≥" },
       { label: "≤", insert: "≤" },
@@ -26,7 +25,7 @@ const KEYBOARD_TABS = [
       { label: "f∘g", insert: "f∘g" },
       { label: "f(x)", insert: "f(x)" },
       { label: "ln", insert: "ln(" },
-      { label: "e^", insert: "e^" },
+      { label: "eⁿ", action: "expN" },
       { label: "(')", insert: "'" },
       { label: "∂/∂x", insert: "∂/∂x" },
       { label: "∫□", insert: "∫" },
@@ -51,7 +50,7 @@ const KEYBOARD_TABS = [
       { label: "∏", insert: "∏" },
       { label: "log", insert: "log(" },
       { label: "ln", insert: "ln(" },
-      { label: "root", insert: "root(" },
+      { label: "ⁿ√", action: "nthRoot" },
       { label: "√", insert: "√(" },
       { label: "|x|", insert: "| |" },
       { label: "f(x)", insert: "f(x)" }
@@ -142,15 +141,130 @@ export default function SAStep({
     return key.insert ?? key.label ?? "";
   };
 
+  const superscriptMap = {
+    "0": "⁰",
+    "1": "¹",
+    "2": "²",
+    "3": "³",
+    "4": "⁴",
+    "5": "⁵",
+    "6": "⁶",
+    "7": "⁷",
+    "8": "⁸",
+    "9": "⁹"
+  };
+
+  const toSuperscript = (valueStr) => {
+    if (!valueStr || !/^\d+$/.test(valueStr)) {
+      return null;
+    }
+    return valueStr
+      .split("")
+      .map((char) => superscriptMap[char] || char)
+      .join("");
+  };
+
+  const wrapBase = (base) => {
+    if (!base) {
+      return "x";
+    }
+    return base.length > 1 ? `(${base})` : base;
+  };
+
+  const applyPower = (exp, baseOverride = null) => {
+    const base = baseOverride ?? value;
+    const cleanExp = `${exp}`.trim();
+    if (!cleanExp) {
+      return;
+    }
+    const superscript = toSuperscript(cleanExp);
+    const displayBase = wrapBase(base || "x");
+    const display = superscript
+      ? `${displayBase}${superscript}`
+      : `${displayBase}^(${cleanExp})`;
+    setValue(display);
+  };
+
+  const handlePowerN = () => {
+    const exp = window.prompt("Enter exponent (n):", "2");
+    if (exp === null) {
+      return;
+    }
+    applyPower(exp);
+  };
+
+  const handlePower2 = () => {
+    applyPower("2");
+  };
+
+  const handleExpN = () => {
+    const exp = window.prompt("Enter exponent (n):", "2");
+    if (exp === null) {
+      return;
+    }
+    applyPower(exp, "e");
+  };
+
+  const handleNthRoot = () => {
+    const n = window.prompt("Enter root (n):", "3");
+    if (n === null) {
+      return;
+    }
+    const base = value || "x";
+    setValue(`√[${n}](${base})`);
+  };
+
+  const handleBoundedIntegral = () => {
+    const lower = window.prompt("Lower bound:", "0");
+    if (lower === null) {
+      return;
+    }
+    const upper = window.prompt("Upper bound:", "1");
+    if (upper === null) {
+      return;
+    }
+    const expr = value || "f(x)";
+    setValue(`∫[${lower},${upper}](${expr})`);
+  };
+
+  const handleKeyAction = (key) => {
+    switch (key.action) {
+      case "power2":
+        handlePower2();
+        break;
+      case "powerN":
+        handlePowerN();
+        break;
+      case "expN":
+        handleExpN();
+        break;
+      case "nthRoot":
+        handleNthRoot();
+        break;
+      case "boundedIntegral":
+        handleBoundedIntegral();
+        break;
+      default:
+        insertText(getInsertText(key));
+    }
+  };
+
   const normalizeMathInput = (raw) => {
     if (!raw) {
       return raw;
     }
     let normalized = raw;
-    normalized = normalized.replace(/([A-Za-z0-9\)])²/g, "$1^(2)");
-    normalized = normalized.replace(/([A-Za-z0-9\)])³/g, "$1^(3)");
+    normalized = normalized.replace(/([A-Za-z0-9\)])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (_, base, sup) => {
+      const digits = sup
+        .split("")
+        .map((char) => Object.keys(superscriptMap).find((key) => superscriptMap[key] === char) || "")
+        .join("");
+      return `${base}^(${digits})`;
+    });
     normalized = normalized.replace(/∛\(/g, "root(");
+    normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
     normalized = normalized.replace(/√\(/g, "sqrt(");
+    normalized = normalized.replace(/∫\[(.+?),(.+?)\]\((.+)\)/g, "Integral($3, (x, $1, $2))");
     normalized = normalized.replace(/∫/g, "Integral(");
     normalized = normalized.replace(/∑/g, "Sum(");
     normalized = normalized.replace(/∏/g, "Product(");
@@ -237,7 +351,7 @@ export default function SAStep({
                     key={`${activeTab}-${key.label}`}
                     type="button"
                     className="math-keyboard-key compact"
-                    onClick={() => insertText(getInsertText(key))}
+                    onClick={() => handleKeyAction(key)}
                     disabled={disabled}
                   >
                     {key.label}
