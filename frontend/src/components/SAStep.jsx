@@ -95,6 +95,7 @@ export default function SAStep({
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("basic");
   const inputRef = useRef(null);
+  const isSpotError = /identify the error/i.test(step.prompt || "");
 
   const getSelection = () => {
     const input = inputRef.current;
@@ -153,6 +154,11 @@ export default function SAStep({
   return (
     <form className="step" onSubmit={handleSubmit}>
       <MathPrompt prompt={step.prompt} />
+      {isSpotError && (
+        <div className="step-hint">
+          Enter the fully corrected answer, not just the error.
+        </div>
+      )}
       <input
         className="step-input"
         type="text"
@@ -161,6 +167,9 @@ export default function SAStep({
         onChange={(event) => setValue(event.target.value)}
         onFocus={() => setKeyboardOpen(true)}
         disabled={disabled}
+        placeholder={
+          isSpotError ? "e.g., f'(x)=2x sin(x) + x^2 cos(x)" : undefined
+        }
       />
       {showMathKeyboard && (
         <>
