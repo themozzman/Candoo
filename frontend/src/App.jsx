@@ -356,6 +356,9 @@ export default function App() {
       setResult(data);
       setAnalysisLoading(false);
       if (data.skipped && data.next_step) {
+        if (data.next_step.id !== currentStep.id) {
+          setQuestionIndex((prev) => prev + 1);
+        }
         setCurrentStep(data.next_step);
         setStepStartTs(Date.now());
         setResult(null);

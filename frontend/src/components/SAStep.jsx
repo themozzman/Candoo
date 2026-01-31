@@ -100,15 +100,16 @@ export default function SAStep({
     };
   };
 
-  const updateValue = (nextValue, caretPosition) => {
+  const updateValue = (nextValue, selectionStart, selectionEnd = null) => {
     setValue(nextValue);
     if (!inputRef.current) {
       return;
     }
     requestAnimationFrame(() => {
       inputRef.current.focus();
-      if (typeof caretPosition === "number") {
-        inputRef.current.setSelectionRange(caretPosition, caretPosition);
+      if (typeof selectionStart === "number") {
+        const end = typeof selectionEnd === "number" ? selectionEnd : selectionStart;
+        inputRef.current.setSelectionRange(selectionStart, end);
       }
     });
   };
@@ -117,6 +118,13 @@ export default function SAStep({
     const { start, end } = getSelection();
     const nextValue = `${value.slice(0, start)}${text}${value.slice(end)}`;
     updateValue(nextValue, start + text.length);
+  };
+
+  const insertTemplate = (template, selectStart) => {
+    const { start, end } = getSelection();
+    const nextValue = `${value.slice(0, start)}${template}${value.slice(end)}`;
+    const selectionStart = start + selectStart;
+    updateValue(nextValue, selectionStart, selectionStart + 1);
   };
 
   const backspace = () => {
@@ -182,49 +190,38 @@ export default function SAStep({
     const display = superscript
       ? `${displayBase}${superscript}`
       : `${displayBase}^(${cleanExp})`;
-    setValue(display);
+    updateValue(display, display.length);
   };
 
   const handlePowerN = () => {
-    const exp = window.prompt("Enter exponent (n):", "2");
-    if (exp === null) {
-      return;
-    }
-    applyPower(exp);
+    const base = value || "x";
+    const template = `${wrapBase(base)}^□`;
+    const selectStart = template.indexOf("□");
+    updateValue(template, selectStart, selectStart + 1);
   };
 
   const handlePower2 = () => {
-    applyPower("2");
+    const base = value || "x";
+    const template = `${wrapBase(base)}²`;
+    updateValue(template, template.length);
   };
 
   const handleExpN = () => {
-    const exp = window.prompt("Enter exponent (n):", "2");
-    if (exp === null) {
-      return;
-    }
-    applyPower(exp, "e");
+    insertTemplate("e^□", 2);
   };
 
   const handleNthRoot = () => {
-    const n = window.prompt("Enter root (n):", "3");
-    if (n === null) {
-      return;
-    }
     const base = value || "x";
-    setValue(`√[${n}](${base})`);
+    const template = `√[□](${base})`;
+    const selectStart = template.indexOf("□");
+    updateValue(template, selectStart, selectStart + 1);
   };
 
   const handleBoundedIntegral = () => {
-    const lower = window.prompt("Lower bound:", "0");
-    if (lower === null) {
-      return;
-    }
-    const upper = window.prompt("Upper bound:", "1");
-    if (upper === null) {
-      return;
-    }
     const expr = value || "f(x)";
-    setValue(`∫[${lower},${upper}](${expr})`);
+    const template = `∫[□,□](${expr})`;
+    const selectStart = template.indexOf("□");
+    updateValue(template, selectStart, selectStart + 1);
   };
 
   const handleKeyAction = (key) => {
@@ -263,6 +260,7 @@ export default function SAStep({
     });
     normalized = normalized.replace(/∛\(/g, "root(");
     normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
+    normalized = normalized.replace(/□/g, "");
     normalized = normalized.replace(/√\(/g, "sqrt(");
     normalized = normalized.replace(/∫\[(.+?),(.+?)\]\((.+)\)/g, "Integral($3, (x, $1, $2))");
     normalized = normalized.replace(/∫/g, "Integral(");
