@@ -314,6 +314,7 @@ def session_start(payload: StartSessionRequest, user: dict = Depends(get_current
             "id": flow["id"],
             "title": flow["title"],
             "statement": flow["statement"],
+            "total_steps": len(flow.get("steps", {})),
         },
         "step": step,
     }

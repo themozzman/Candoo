@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 import katex from "katex";
 
-const MATH_TRIGGER = /[=\^]|\\|sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi|π/i;
+const MATH_TRIGGER =
+  /[=\^]|\\|sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi|π|\b[a-zA-Z]\s*\(/i;
 
 function splitPrompt(prompt) {
   if (!prompt) {
@@ -15,7 +16,10 @@ function splitPrompt(prompt) {
     return { text: prompt, math: "" };
   }
   const mathStart = prompt.search(MATH_TRIGGER);
-  if (mathStart <= 0) {
+  if (mathStart === 0) {
+    return { text: "", math: prompt };
+  }
+  if (mathStart < 0) {
     return { text: prompt, math: "" };
   }
   const text = prompt.slice(0, mathStart).trim();

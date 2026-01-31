@@ -1,47 +1,100 @@
 import React, { useRef, useState } from "react";
 import MathPrompt from "./MathPrompt.jsx";
 
-const BASE_KEYS = [
-  ["7", "8", "9", { label: "÷", value: "/", alt: ["÷", "/"] }],
-  ["4", "5", "6", { label: "×", value: "*", alt: ["×", "*", "·"] }],
-  ["1", "2", "3", { label: "−", value: "-", alt: ["−", "-"] }],
-  ["0", ".", "=", "+"]
+const KEYBOARD_TABS = [
+  {
+    id: "basic",
+    label: "Basic",
+    keys: [
+      { label: "7", value: "7" },
+      { label: "8", value: "8" },
+      { label: "9", value: "9" },
+      { label: "÷", value: "/" },
+      { label: "4", value: "4" },
+      { label: "5", value: "5" },
+      { label: "6", value: "6" },
+      { label: "×", value: "*" },
+      { label: "1", value: "1" },
+      { label: "2", value: "2" },
+      { label: "3", value: "3" },
+      { label: "−", value: "-" },
+      { label: "0", value: "0" },
+      { label: ".", value: "." },
+      { label: "=", value: "=" },
+      { label: "+", value: "+" },
+      { label: "(", value: "(" },
+      { label: ")", value: ")" },
+      { label: "^", value: "^" },
+      { label: "x", value: "x" },
+      { label: "y", value: "y" },
+      { label: "π", value: "pi" },
+      { label: "√", value: "sqrt(" }
+    ]
+  },
+  {
+    id: "calc",
+    label: "Calc",
+    keys: [
+      { label: "d/dx", value: "Derivative(" },
+      { label: "∫", value: "Integral(" },
+      { label: "lim", value: "limit(" },
+      { label: "∞", value: "oo" },
+      { label: "θ", value: "theta" },
+      { label: "log", value: "log(" },
+      { label: "ln", value: "ln(" },
+      { label: "root", value: "root(" },
+      { label: "|x|", value: "abs(" },
+      { label: "f(x)", value: "f(x)" },
+      { label: "g(x)", value: "g(x)" },
+      { label: "h(x)", value: "h(x)" }
+    ]
+  },
+  {
+    id: "trig",
+    label: "sin cos",
+    keys: [
+      { label: "sin", value: "sin(" },
+      { label: "cos", value: "cos(" },
+      { label: "tan", value: "tan(" },
+      { label: "csc", value: "csc(" },
+      { label: "sec", value: "sec(" },
+      { label: "cot", value: "cot(" },
+      { label: "arcsin", value: "arcsin(" },
+      { label: "arccos", value: "arccos(" },
+      { label: "arctan", value: "arctan(" }
+    ]
+  },
+  {
+    id: "symbols",
+    label: "Σ ∫ Π",
+    keys: [
+      { label: "≤", value: "<=" },
+      { label: "≥", value: ">=" },
+      { label: "≠", value: "!=" },
+      { label: "≈", value: "~" },
+      { label: "°", value: "deg" },
+      { label: "⋅", value: "*" },
+      { label: "÷", value: "/" },
+      { label: "→", value: "->" },
+      { label: "∑", value: "Sum(" },
+      { label: "∏", value: "Product(" },
+      { label: "π", value: "pi" },
+      { label: "e", value: "e" }
+    ]
+  }
 ];
 
-const EXTRA_KEYS = [
-  { label: "x", value: "x" },
-  { label: "y", value: "y" },
-  { label: "π", value: "pi" },
-  { label: "√", value: "sqrt(" },
-  { label: "(", value: "(" },
-  { label: ")", value: ")" },
-  { label: "^", value: "^" }
-];
-
-const FUNCTION_KEYS = [
-  { label: "sin", value: "sin(" },
-  { label: "cos", value: "cos(" },
-  { label: "tan", value: "tan(" },
-  { label: "sec", value: "sec(" },
-  { label: "csc", value: "csc(" },
-  { label: "cot", value: "cot(" },
-  { label: "arcsin", value: "arcsin(" },
-  { label: "arccos", value: "arccos(" },
-  { label: "arctan", value: "arctan(" },
-  { label: "log", value: "log(" },
-  { label: "ln", value: "ln(" },
-  { label: "nth root", value: "root(" }
-];
-
-const LONG_PRESS_MS = 450;
-
-export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = false }) {
+export default function SAStep({
+  step,
+  onAnswer,
+  onSkip,
+  showMathKeyboard = false,
+  disabled = false
+}) {
   const [value, setValue] = useState("");
-  const [showFunctions, setShowFunctions] = useState(false);
-  const [altOptions, setAltOptions] = useState(null);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("basic");
   const inputRef = useRef(null);
-  const longPressTimerRef = useRef(null);
-  const didLongPressRef = useRef(false);
 
   const getSelection = () => {
     const input = inputRef.current;
@@ -68,7 +121,6 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
   const insertText = (text) => {
     const { start, end } = getSelection();
     const nextValue = `${value.slice(0, start)}${text}${value.slice(end)}`;
-    setAltOptions(null);
     updateValue(nextValue, start + text.length);
   };
 
@@ -87,44 +139,16 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
   };
 
   const clearValue = () => {
-    setAltOptions(null);
     updateValue("", 0);
-  };
-
-  const startLongPress = (key) => {
-    if (!key?.alt) {
-      return;
-    }
-    didLongPressRef.current = false;
-    longPressTimerRef.current = setTimeout(() => {
-      didLongPressRef.current = true;
-      setAltOptions(key.alt);
-    }, LONG_PRESS_MS);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  const handleKeyClick = (key) => {
-    if (didLongPressRef.current) {
-      didLongPressRef.current = false;
-      return;
-    }
-    insertText(key.value);
-  };
-
-  const handleAltInsert = (option) => {
-    insertText(option);
   };
 
   const handleSubmit = (event) => {
     event.preventDefault();
     onAnswer(value);
   };
+
+  const activeKeys =
+    KEYBOARD_TABS.find((tab) => tab.id === activeTab)?.keys || [];
 
   return (
     <form className="step" onSubmit={handleSubmit}>
@@ -135,98 +159,83 @@ export default function SAStep({ step, onAnswer, onSkip, showMathKeyboard = fals
         ref={inputRef}
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        onFocus={() => setKeyboardOpen(true)}
+        disabled={disabled}
       />
       {showMathKeyboard && (
-        <div className="math-keyboard">
-          <div className="math-keyboard-grid">
-            {BASE_KEYS.flat().map((item) => {
-              const key = typeof item === "string" ? { label: item, value: item } : item;
-              return (
-                <button
-                  key={key.label}
-                  type="button"
-                  className="math-keyboard-key"
-                  onClick={() => handleKeyClick(key)}
-                  onPointerDown={() => startLongPress(key)}
-                  onPointerUp={cancelLongPress}
-                  onPointerLeave={cancelLongPress}
-                  onPointerCancel={cancelLongPress}
-                >
-                  {key.label}
-                </button>
-              );
-            })}
+        <>
+          <div className="math-keyboard-toggle-row">
+            <button
+              type="button"
+              className="math-keyboard-toggle-button"
+              onClick={() => setKeyboardOpen((prev) => !prev)}
+              disabled={disabled}
+            >
+              {keyboardOpen ? "Hide keyboard" : "Show keyboard"}
+            </button>
           </div>
-          {altOptions && (
-            <div className="math-alt-panel">
-              {altOptions.map((option) => (
+          {keyboardOpen && (
+            <div className="math-keyboard compact">
+              <div className="math-keyboard-tabs">
+                {KEYBOARD_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`math-keyboard-tab ${
+                      activeTab === tab.id ? "active" : ""
+                    }`}
+                    onClick={() => setActiveTab(tab.id)}
+                    disabled={disabled}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="math-keyboard-grid compact">
+                {activeKeys.map((key) => (
+                  <button
+                    key={`${activeTab}-${key.label}`}
+                    type="button"
+                    className="math-keyboard-key compact"
+                    onClick={() => insertText(key.value)}
+                    disabled={disabled}
+                  >
+                    {key.label}
+                  </button>
+                ))}
+              </div>
+              <div className="math-keyboard-actions compact">
                 <button
-                  key={option}
                   type="button"
-                  className="math-keyboard-key"
-                  onClick={() => handleAltInsert(option)}
+                  className="math-keyboard-action"
+                  onClick={backspace}
+                  disabled={disabled}
                 >
-                  {option}
+                  ⌫
                 </button>
-              ))}
+                <button
+                  type="button"
+                  className="math-keyboard-action"
+                  onClick={clearValue}
+                  disabled={disabled}
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           )}
-          <div className="math-keyboard-strip">
-            {EXTRA_KEYS.map((key) => (
-              <button
-                key={key.label}
-                type="button"
-                className="math-keyboard-key"
-                onClick={() => insertText(key.value)}
-              >
-                {key.label}
-              </button>
-            ))}
-          </div>
-          <div className="math-keyboard-actions">
-            <button
-              type="button"
-              className="math-keyboard-key math-keyboard-toggle"
-              onClick={() => setShowFunctions((prev) => !prev)}
-            >
-              Functions
-            </button>
-            <button
-              type="button"
-              className="math-keyboard-key"
-              onClick={backspace}
-            >
-              ⌫
-            </button>
-            <button
-              type="button"
-              className="math-keyboard-key"
-              onClick={clearValue}
-            >
-              Clear
-            </button>
-          </div>
-          {showFunctions && (
-            <div className="math-function-panel">
-              {FUNCTION_KEYS.map((key) => (
-                <button
-                  key={key.label}
-                  type="button"
-                  className="math-keyboard-key"
-                  onClick={() => insertText(key.value)}
-                >
-                  {key.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        </>
       )}
       <div className="step-actions">
-        <button className="button-primary" type="submit">
+        <button className="button-primary" type="submit" disabled={disabled}>
           Submit
         </button>
-        <button className="button-secondary" type="button" onClick={onSkip}>
+        <button
+          className="button-secondary"
+          type="button"
+          onClick={onSkip}
+          disabled={disabled}
+        >
           Skip
         </button>
       </div>

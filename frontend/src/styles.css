@@ -177,6 +177,19 @@ body {
 
 .runner-toolbar {
   padding-bottom: 12px;
+  justify-content: flex-start;
+}
+
+.runner-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-left: 16px;
+  text-align: left;
+}
+
+.runner-toolbar .user-chip {
+  margin-left: auto;
 }
 
 .user-chip {
@@ -303,91 +316,125 @@ body {
   background: #f8fafc;
 }
 
-.math-keyboard {
-  background: #f1f5f9;
+.math-keyboard-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.math-keyboard-toggle-button {
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 12px;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.math-keyboard-toggle-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.math-keyboard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;
   width: 100%;
 }
 
+.math-keyboard.compact {
+  gap: 8px;
+}
+
+.math-keyboard-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.math-keyboard-tab {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.math-keyboard-tab.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
 .math-keyboard-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
 }
 
-.math-keyboard-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.math-keyboard-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.math-alt-panel {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.math-function-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 8px;
+.math-keyboard-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
 }
 
 .math-keyboard-key {
-  border: none;
+  border: 1px solid #e2e8f0;
   background: #ffffff;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
+  border-radius: 8px;
+  padding: 8px 6px;
+  font-size: 13px;
   font-weight: 600;
   color: #0f172a;
   cursor: pointer;
-  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
 }
 
+.math-keyboard-key.compact {
+  font-size: 12px;
+  padding: 6px 4px;
+}
+
 .math-keyboard-key:hover {
-  background: #e2e8f0;
+  background: #eef2f7;
 }
 
-.math-keyboard-toggle {
-  background: #0f172a;
-  color: #ffffff;
+.math-keyboard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
-.math-keyboard-toggle:hover {
-  background: #1e293b;
+.math-keyboard-actions.compact {
+  gap: 6px;
+}
+
+.math-keyboard-action {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 @media (max-width: 720px) {
-  .math-keyboard {
-    padding: 10px;
-    gap: 8px;
-  }
-
   .math-keyboard-grid {
-    gap: 6px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .math-keyboard-key {
-    padding: 10px 8px;
-    font-size: 13px;
-  }
-
-  .math-function-panel {
-    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  .math-keyboard-tab {
+    font-size: 11px;
   }
 }
 
@@ -423,6 +470,45 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.runner-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runner-step-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.runner-step-badge {
+  background: #e6f4f1;
+  color: #0f766e;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.runner-progress {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.runner-progress-bar {
+  height: 100%;
+  background: #0f766e;
+  border-radius: 999px;
+  transition: width 0.3s ease;
 }
 
 .course-catalog {
@@ -1643,6 +1729,11 @@ body {
   border-radius: 10px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.option-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .step-actions {

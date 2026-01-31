@@ -76,6 +76,9 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState(null);
   const [activeFlow, setActiveFlow] = useState(null);
   const [result, setResult] = useState(null);
+  const [questionIndex, setQuestionIndex] = useState(1);
+  const [totalSteps, setTotalSteps] = useState(null);
+  const [isAdvancing, setIsAdvancing] = useState(false);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
   const [returnView, setReturnView] = useState("catalog");
@@ -300,6 +303,9 @@ export default function App() {
     setActiveFlow(null);
     setResult(null);
     setStepStartTs(null);
+    setQuestionIndex(1);
+    setTotalSteps(null);
+    setIsAdvancing(false);
   };
 
   const handleStart = async () => {
@@ -309,16 +315,19 @@ export default function App() {
       const data = await startSession(selectedFlowId, studentId);
       setSessionId(data.session_id);
       setActiveFlow(data.flow);
+      setTotalSteps(data.flow?.total_steps || null);
       setCurrentStep(data.step);
       setResult(null);
       setStepStartTs(Date.now());
+      setQuestionIndex(1);
+      setIsAdvancing(false);
     } catch (err) {
       setError(err.message);
     }
   };
 
   const handleSubmit = async (response, skipped = false) => {
-    if (!sessionId || !currentStep) {
+    if (!sessionId || !currentStep || isAdvancing) {
       return;
     }
     setError("");
@@ -331,13 +340,23 @@ export default function App() {
         skipped
       });
       setResult(data);
-      if (data.next_step) {
-        setCurrentStep(data.next_step);
-        setStepStartTs(Date.now());
-      } else {
-        setCurrentStep(null);
-        setStepStartTs(null);
-      }
+      setIsAdvancing(true);
+      const nextStep = data.next_step;
+      const advance = () => {
+        if (nextStep) {
+          if (nextStep.id !== currentStep.id) {
+            setQuestionIndex((prev) => prev + 1);
+          }
+          setCurrentStep(nextStep);
+          setStepStartTs(Date.now());
+        } else {
+          setCurrentStep(null);
+          setStepStartTs(null);
+        }
+        setResult(null);
+        setIsAdvancing(false);
+      };
+      window.setTimeout(advance, 750);
     } catch (err) {
       setError(err.message);
     }
@@ -690,6 +709,9 @@ export default function App() {
           >
             ← Back to courses
           </button>
+          {activeFlow?.title && (
+            <div className="runner-title">{activeFlow.title}</div>
+          )}
           <div className="user-chip">
             <span className="user-name">{authUser.username}</span>
             {isAdmin && <span className="user-role">Admin</span>}
@@ -1312,22 +1334,48 @@ export default function App() {
         {authChecked && authUser && viewMode === "runner" && (
           <section className="runner">
             <div className="card runner-step">
-              <h3 className="card-title">Current step</h3>
               {currentStep ? (
-                currentStep.type === "MC" ? (
-                  <MCStep
-                    step={currentStep}
-                    onAnswer={(value) => handleSubmit(value, false)}
-                    onSkip={() => handleSubmit("", true)}
-                  />
-                ) : (
-                  <SAStep
-                    step={currentStep}
-                    onAnswer={(value) => handleSubmit(value, false)}
-                    onSkip={() => handleSubmit("", true)}
-                    showMathKeyboard={isMathCourse}
-                  />
-                )
+                <>
+                  <div className="runner-step-header">
+                    <div className="runner-step-label">
+                      Question {questionIndex}
+                      {totalSteps ? ` of ${totalSteps}` : ""}
+                    </div>
+                    <span className="runner-step-badge">{currentStep.type}</span>
+                  </div>
+                  {totalSteps && (
+                    <div className="runner-progress">
+                      <div
+                        className="runner-progress-bar"
+                        style={{
+                          width: `${Math.min(
+                            (questionIndex / totalSteps) * 100,
+                            100
+                          )}%`
+                        }}
+                      />
+                    </div>
+                  )}
+                  {currentStep.type === "MC" ? (
+                    <MCStep
+                      key={currentStep.id}
+                      step={currentStep}
+                      onAnswer={(value) => handleSubmit(value, false)}
+                      onSkip={() => handleSubmit("", true)}
+                      disabled={isAdvancing}
+                    />
+                  ) : (
+                    <SAStep
+                      key={currentStep.id}
+                      step={currentStep}
+                      onAnswer={(value) => handleSubmit(value, false)}
+                      onSkip={() => handleSubmit("", true)}
+                      showMathKeyboard={isMathCourse}
+                      disabled={isAdvancing}
+                    />
+                  )}
+                  <Feedback result={result} />
+                </>
               ) : sessionId ? (
                 <div className="session-complete">
                   Session completed. Start a new session to try again.
@@ -1337,7 +1385,6 @@ export default function App() {
                   Start a session to load the first question.
                 </div>
               )}
-              <Feedback result={result} />
             </div>
           </section>
         )}
