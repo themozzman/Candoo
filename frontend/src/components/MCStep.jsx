@@ -1,7 +1,13 @@
 import React from "react";
 import MathPrompt from "./MathPrompt.jsx";
 
-export default function MCStep({ step, onAnswer, onSkip, disabled = false }) {
+export default function MCStep({
+  step,
+  onAnswer,
+  onSkip,
+  disabled = false,
+  hideSkip = false
+}) {
   return (
     <div className="step">
       <MathPrompt prompt={step.prompt} />
@@ -18,9 +24,11 @@ export default function MCStep({ step, onAnswer, onSkip, disabled = false }) {
         ))}
       </div>
       <div className="step-actions">
-        <button className="button-secondary" onClick={onSkip} disabled={disabled}>
-          Skip
-        </button>
+        {!hideSkip && (
+          <button className="button-secondary" onClick={onSkip} disabled={disabled}>
+            Skip
+          </button>
+        )}
       </div>
     </div>
   );

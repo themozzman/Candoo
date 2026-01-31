@@ -82,6 +82,7 @@ export default function App() {
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [pendingNextStep, setPendingNextStep] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [finishReady, setFinishReady] = useState(false);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
   const [returnView, setReturnView] = useState("catalog");
@@ -312,6 +313,7 @@ export default function App() {
     setIsAdvancing(false);
     setPendingNextStep(null);
     setAnalysisLoading(false);
+    setFinishReady(false);
     if (advanceTimerRef.current) {
       clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = null;
@@ -331,6 +333,7 @@ export default function App() {
       setStepStartTs(Date.now());
       setQuestionIndex(1);
       setIsAdvancing(false);
+      setFinishReady(false);
     } catch (err) {
       setError(err.message);
     }
@@ -366,6 +369,7 @@ export default function App() {
         setResult(null);
         setIsAdvancing(false);
         setPendingNextStep(null);
+        setFinishReady(false);
         if (advanceTimerRef.current) {
           clearTimeout(advanceTimerRef.current);
           advanceTimerRef.current = null;
@@ -378,9 +382,15 @@ export default function App() {
       } else if (nextStep) {
         setCurrentStep(nextStep);
         setStepStartTs(Date.now());
+        setFinishReady(false);
       } else {
-        setCurrentStep(null);
-        setStepStartTs(null);
+        setFinishReady(true);
+        setIsAdvancing(false);
+        setPendingNextStep(null);
+        if (advanceTimerRef.current) {
+          clearTimeout(advanceTimerRef.current);
+          advanceTimerRef.current = null;
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -430,6 +440,15 @@ export default function App() {
     setResult(null);
     setIsAdvancing(false);
     setPendingNextStep(null);
+    setFinishReady(false);
+  };
+
+  const handleFinishQuiz = () => {
+    setCurrentStep(null);
+    setStepStartTs(null);
+    setResult(null);
+    setPendingNextStep(null);
+    setFinishReady(false);
   };
 
   const handleAuthSubmit = async (event) => {
@@ -1433,6 +1452,7 @@ export default function App() {
                       onAnswer={(value) => handleSubmit(value, false)}
                       onSkip={() => handleSubmit("", true)}
                       disabled={isAdvancing}
+                      hideSkip={Boolean(result?.reveal)}
                     />
                   ) : (
                     <SAStep
@@ -1448,6 +1468,7 @@ export default function App() {
                           : ""
                       }
                       forceHideKeyboard={Boolean(result?.reveal)}
+                      hideSkip={Boolean(result?.reveal)}
                     />
                   )}
                   <Feedback
@@ -1463,6 +1484,15 @@ export default function App() {
                       onClick={handleAdvanceNow}
                     >
                       Next question →
+                    </button>
+                  )}
+                  {finishReady && result && !result.next_step && (result.correct || result.reveal) && (
+                    <button
+                      className="button-ghost runner-next"
+                      type="button"
+                      onClick={handleFinishQuiz}
+                    >
+                      Finish Quiz →
                     </button>
                   )}
                 </>

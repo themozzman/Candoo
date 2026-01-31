@@ -91,7 +91,8 @@ export default function SAStep({
   showMathKeyboard = false,
   disabled = false,
   revealedAnswer = "",
-  forceHideKeyboard = false
+  forceHideKeyboard = false,
+  hideSkip = false
 }) {
   const [value, setValue] = useState("");
   useEffect(() => {
@@ -251,14 +252,16 @@ export default function SAStep({
         <button className="button-primary" type="submit" disabled={disabled}>
           Submit
         </button>
-        <button
-          className="button-secondary"
-          type="button"
-          onClick={onSkip}
-          disabled={disabled}
-        >
-          Skip
-        </button>
+        {!hideSkip && (
+          <button
+            className="button-secondary"
+            type="button"
+            onClick={onSkip}
+            disabled={disabled}
+          >
+            Skip
+          </button>
+        )}
       </div>
     </form>
   );
