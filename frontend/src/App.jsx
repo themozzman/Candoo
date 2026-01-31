@@ -1180,15 +1180,6 @@ export default function App() {
                 studentQuizCards.map((quiz, index) => (
                   <div key={quiz.flow.id} className="student-quiz-card">
                     <div className="quiz-left">
-                      <div
-                        className={
-                          quiz.score
-                            ? "quiz-status complete"
-                            : "quiz-status"
-                        }
-                      >
-                        {quiz.score ? "✓" : ""}
-                      </div>
                       <div>
                         <div className="quiz-title">{quiz.flow.title}</div>
                         <div className="quiz-meta">
@@ -1205,12 +1196,6 @@ export default function App() {
                     <div className="quiz-right">
                       {quiz.score ? (
                         <>
-                          <div className="quiz-score">
-                            <div className="quiz-score-value">
-                              {quiz.score}%
-                            </div>
-                            <div className="quiz-score-label">Score</div>
-                          </div>
                           <button
                             className="quiz-review"
                             type="button"
