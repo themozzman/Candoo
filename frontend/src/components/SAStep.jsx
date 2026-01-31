@@ -6,68 +6,67 @@ const KEYBOARD_TABS = [
     id: "basic",
     label: "Basic",
     keys: [
-      { label: "x²", value: "^(2)" },
-      { label: "x^", value: "^" },
-      { label: "√", value: "sqrt(" },
-      { label: "∛", value: "root(" },
-      { label: "÷", value: "/" },
-      { label: "log", value: "log(" },
-      { label: "π", value: "pi" },
-      { label: "θ", value: "theta" },
-      { label: "∞", value: "oo" },
-      { label: "∫", value: "Integral(" },
-      { label: "d/dx", value: "Derivative(" },
-      { label: "≥", value: ">=" },
-      { label: "≤", value: "<=" },
-      { label: "·", value: "*" },
-      { label: "÷", value: "/" },
-      { label: "x°", value: "deg" },
-      { label: "( )", value: "(" },
-      { label: "| |", value: "abs(" },
-      { label: "f∘g", value: "compose(" },
-      { label: "f(x)", value: "f(x)" },
-      { label: "ln", value: "ln(" },
-      { label: "e^", value: "exp(" },
-      { label: "(')", value: "'" },
-      { label: "∂/∂x", value: "Derivative(" },
-      { label: "∫□", value: "Integral(" },
-      { label: "lim", value: "limit(" },
-      { label: "∑", value: "Sum(" },
-      { label: "sin", value: "sin(" },
-      { label: "cos", value: "cos(" },
-      { label: "tan", value: "tan(" },
-      { label: "cot", value: "cot(" },
-      { label: "csc", value: "csc(" },
-      { label: "sec", value: "sec(" }
+      { label: "x²", insert: "x²" },
+      { label: "x^", insert: "x^" },
+      { label: "√", insert: "√(" },
+      { label: "∛", insert: "∛(" },
+      { label: "÷", insert: "÷" },
+      { label: "log", insert: "log(" },
+      { label: "π", insert: "π" },
+      { label: "θ", insert: "θ" },
+      { label: "∞", insert: "∞" },
+      { label: "∫", insert: "∫" },
+      { label: "d/dx", insert: "d/dx" },
+      { label: "≥", insert: "≥" },
+      { label: "≤", insert: "≤" },
+      { label: "·", insert: "·" },
+      { label: "x°", insert: "°" },
+      { label: "( )", insert: "(" },
+      { label: "| |", insert: "|" },
+      { label: "f∘g", insert: "f∘g" },
+      { label: "f(x)", insert: "f(x)" },
+      { label: "ln", insert: "ln(" },
+      { label: "e^", insert: "e^" },
+      { label: "(')", insert: "'" },
+      { label: "∂/∂x", insert: "∂/∂x" },
+      { label: "∫□", insert: "∫" },
+      { label: "lim", insert: "lim(" },
+      { label: "∑", insert: "∑" },
+      { label: "sin", insert: "sin(" },
+      { label: "cos", insert: "cos(" },
+      { label: "tan", insert: "tan(" },
+      { label: "cot", insert: "cot(" },
+      { label: "csc", insert: "csc(" },
+      { label: "sec", insert: "sec(" }
     ]
   },
   {
     id: "calc",
     label: "Calc",
     keys: [
-      { label: "∫", value: "Integral(" },
-      { label: "d/dx", value: "Derivative(" },
-      { label: "lim", value: "limit(" },
-      { label: "∑", value: "Sum(" },
-      { label: "∏", value: "Product(" },
-      { label: "log", value: "log(" },
-      { label: "ln", value: "ln(" },
-      { label: "root", value: "root(" },
-      { label: "√", value: "sqrt(" },
-      { label: "|x|", value: "abs(" },
-      { label: "f(x)", value: "f(x)" }
+      { label: "∫", insert: "∫" },
+      { label: "d/dx", insert: "d/dx" },
+      { label: "lim", insert: "lim(" },
+      { label: "∑", insert: "∑" },
+      { label: "∏", insert: "∏" },
+      { label: "log", insert: "log(" },
+      { label: "ln", insert: "ln(" },
+      { label: "root", insert: "root(" },
+      { label: "√", insert: "√(" },
+      { label: "|x|", insert: "| |" },
+      { label: "f(x)", insert: "f(x)" }
     ]
   },
   {
     id: "trig",
     label: "sin cos",
     keys: [
-      { label: "sin", value: "sin(" },
-      { label: "cos", value: "cos(" },
-      { label: "tan", value: "tan(" },
-      { label: "csc", value: "csc(" },
-      { label: "sec", value: "sec(" },
-      { label: "cot", value: "cot(" }
+      { label: "sin", insert: "sin(" },
+      { label: "cos", insert: "cos(" },
+      { label: "tan", insert: "tan(" },
+      { label: "csc", insert: "csc(" },
+      { label: "sec", insert: "sec(" },
+      { label: "cot", insert: "cot(" }
     ]
   }
 ];
@@ -139,12 +138,45 @@ export default function SAStep({
     updateValue("", 0);
   };
 
+  const getInsertText = (key) => {
+    return key.insert ?? key.label ?? "";
+  };
+
+  const normalizeMathInput = (raw) => {
+    if (!raw) {
+      return raw;
+    }
+    let normalized = raw;
+    normalized = normalized.replace(/([A-Za-z0-9\)])²/g, "$1^(2)");
+    normalized = normalized.replace(/([A-Za-z0-9\)])³/g, "$1^(3)");
+    normalized = normalized.replace(/∛\(/g, "root(");
+    normalized = normalized.replace(/√\(/g, "sqrt(");
+    normalized = normalized.replace(/∫/g, "Integral(");
+    normalized = normalized.replace(/∑/g, "Sum(");
+    normalized = normalized.replace(/∏/g, "Product(");
+    normalized = normalized.replace(/∂\/∂x/g, "Derivative(");
+    normalized = normalized.replace(/d\/dx/g, "Derivative(");
+    normalized = normalized.replace(/π/g, "pi");
+    normalized = normalized.replace(/θ/g, "theta");
+    normalized = normalized.replace(/∞/g, "oo");
+    normalized = normalized.replace(/·/g, "*");
+    normalized = normalized.replace(/÷/g, "/");
+    normalized = normalized.replace(/≥/g, ">=");
+    normalized = normalized.replace(/≤/g, "<=");
+    normalized = normalized.replace(/\| \|/g, "abs(");
+    normalized = normalized.replace(/\|\|/g, "abs(");
+    normalized = normalized.replace(/\|/g, "abs(");
+    normalized = normalized.replace(/°/g, "deg");
+    normalized = normalized.replace(/f∘g/g, "compose(");
+    return normalized;
+  };
+
   const handleSubmit = (event) => {
     event.preventDefault();
     if (hideSubmit) {
       return;
     }
-    onAnswer(value);
+    onAnswer(normalizeMathInput(value));
   };
 
   const activeKeys =
@@ -205,7 +237,7 @@ export default function SAStep({
                     key={`${activeTab}-${key.label}`}
                     type="button"
                     className="math-keyboard-key compact"
-                    onClick={() => insertText(key.value)}
+                    onClick={() => insertText(getInsertText(key))}
                     disabled={disabled}
                   >
                     {key.label}
