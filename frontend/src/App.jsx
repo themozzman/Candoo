@@ -13,6 +13,7 @@ import {
   fetchCourses,
   fetchFlows,
   fetchMe,
+  fetchReport,
   login,
   logout,
   requestPasswordReset,
@@ -59,6 +60,10 @@ export default function App() {
   const [previewFlow, setPreviewFlow] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewStatus, setPreviewStatus] = useState("");
+  const [reportData, setReportData] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportStatus, setReportStatus] = useState("");
+  const [reportMeta, setReportMeta] = useState(null);
   const [courseStudentCounts, setCourseStudentCounts] = useState({});
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
@@ -234,6 +239,13 @@ export default function App() {
       const course = courses.find((item) => item.id === courseId);
       return course?.active_flow_id === flow.id;
     });
+  };
+
+  const formatPercent = (value, digits = 0) => {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return "0%";
+    }
+    return `${(value * 100).toFixed(digits)}%`;
   };
 
   useEffect(() => {
@@ -575,6 +587,19 @@ export default function App() {
     }
   };
 
+  const handleViewReport = async (flow) => {
+    setReportStatus("");
+    setReportData(null);
+    setReportMeta({ id: flow.id, title: flow.title });
+    try {
+      const data = await fetchReport(flow.id);
+      setReportData(data);
+      setReportOpen(true);
+    } catch (err) {
+      setReportStatus(err.message);
+    }
+  };
+
   const handleAdminDeleteUser = async (username) => {
     if (!username) {
       return;
@@ -596,6 +621,40 @@ export default function App() {
       setAdminRosterStatus(err.message);
     }
   };
+
+  const reportSummary = reportData?.summary_by_step || [];
+  const reportStudents = reportData?.students || [];
+  const reportBottlenecks = reportData?.bottlenecks || [];
+  const reportWrongSamples = reportData?.wrong_response_samples || {};
+  const totalAttempts = reportSummary.reduce(
+    (sum, step) => sum + (step.attempts || 0),
+    0
+  );
+  const totalCorrect = reportSummary.reduce(
+    (sum, step) => sum + (step.correct_count || 0),
+    0
+  );
+  const totalWrong = reportSummary.reduce(
+    (sum, step) => sum + (step.wrong_count || 0),
+    0
+  );
+  const totalSkipped = reportSummary.reduce(
+    (sum, step) => sum + (step.skip_count || 0),
+    0
+  );
+  const avgCompletion = reportStudents.length
+    ? reportStudents.reduce(
+        (sum, student) => sum + (student.completion_rate || 0),
+        0
+      ) / reportStudents.length
+    : 0;
+  const attemptValues = reportStudents
+    .map((student) => student.avg_attempts_per_step)
+    .filter((value) => value !== null && value !== undefined);
+  const avgAttemptsPerStep = attemptValues.length
+    ? attemptValues.reduce((sum, value) => sum + value, 0) / attemptValues.length
+    : 0;
+  const limitedReportData = totalAttempts > 0 && totalAttempts < 5;
 
   const handleAdminAuth = async (event) => {
     event.preventDefault();
@@ -1061,7 +1120,11 @@ export default function App() {
                             >
                               Preview
                             </button>
-                            <button className="quiz-button" type="button">
+                            <button
+                              className="quiz-button"
+                              type="button"
+                              onClick={() => handleViewReport(flow)}
+                            >
                               View Reports
                             </button>
                           </div>
@@ -1326,7 +1389,175 @@ export default function App() {
           </div>
         )}
 
+        {reportOpen && reportData && (
+          <div className="report-overlay" onClick={() => setReportOpen(false)}>
+            <div
+              className="report-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="report-header">
+                <div>
+                  <div className="report-title">
+                    {reportMeta?.title || "Quiz report"}
+                  </div>
+                  <div className="report-subtitle">
+                    {reportMeta?.id || reportData.flow_id}
+                  </div>
+                </div>
+                <button
+                  className="report-close"
+                  type="button"
+                  onClick={() => setReportOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="report-body">
+                <div className="report-summary">
+                  <div className="report-stat">
+                    <div className="report-stat-label">Avg accuracy</div>
+                    <div className="report-stat-value">
+                      {formatPercent(
+                        totalAttempts ? totalCorrect / totalAttempts : 0,
+                        0
+                      )}
+                    </div>
+                  </div>
+                  <div className="report-stat">
+                    <div className="report-stat-label">Completion</div>
+                    <div className="report-stat-value">
+                      {formatPercent(avgCompletion, 0)}
+                    </div>
+                  </div>
+                  <div className="report-stat">
+                    <div className="report-stat-label">Avg attempts/step</div>
+                    <div className="report-stat-value">
+                      {avgAttemptsPerStep ? avgAttemptsPerStep.toFixed(1) : "0.0"}
+                    </div>
+                  </div>
+                  <div className="report-stat">
+                    <div className="report-stat-label">Total attempts</div>
+                    <div className="report-stat-value">{totalAttempts}</div>
+                  </div>
+                </div>
+
+                {totalAttempts === 0 && (
+                  <div className="report-empty">
+                    No attempts yet. Reports will populate once students submit.
+                  </div>
+                )}
+
+                {limitedReportData && (
+                  <div className="report-note">
+                    Limited data so far. Metrics will stabilize with more attempts.
+                  </div>
+                )}
+
+                <div className="report-section">
+                  <div className="report-section-title">Bottlenecks</div>
+                  {reportBottlenecks.length === 0 ? (
+                    <div className="report-empty">No bottlenecks yet.</div>
+                  ) : (
+                    <div className="report-bottlenecks">
+                      {reportBottlenecks.map((item) => (
+                        <div key={item.step_id} className="report-bottleneck">
+                          <div className="report-bottleneck-title">
+                            {item.prompt || item.step_id}
+                          </div>
+                          <div className="report-bottleneck-metric">
+                            Wrong: {formatPercent(item.wrong_rate, 0)} | Skip:{" "}
+                            {formatPercent(item.skip_rate, 0)} | Attempts:{" "}
+                            {item.attempts}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="report-section">
+                  <div className="report-section-title">Question breakdown</div>
+                  <div className="report-questions">
+                    {reportSummary.map((step) => {
+                      const wrongSamples = reportWrongSamples[step.step_id] || [];
+                      return (
+                        <div key={step.step_id} className="report-question-card">
+                          <div className="report-question-title">
+                            {step.step_id}
+                          </div>
+                          <MathPrompt prompt={step.prompt} />
+                          <div className="report-question-stats">
+                            <div>
+                              Attempts: {step.attempts} | Correct:{" "}
+                              {step.correct_count} | Wrong: {step.wrong_count} |
+                              Skipped: {step.skip_count}
+                            </div>
+                            <div>
+                              Wrong rate: {formatPercent(step.wrong_rate, 0)} |
+                              Skip rate: {formatPercent(step.skip_rate, 0)} |
+                              Avg attempts to correct:{" "}
+                              {step.avg_attempts_before_correct
+                                ? step.avg_attempts_before_correct.toFixed(1)
+                                : "-"}
+                            </div>
+                          </div>
+                          {wrongSamples.length > 0 && (
+                            <div className="report-wrong-answers">
+                              <div className="report-wrong-title">
+                                Common wrong answers
+                              </div>
+                              <div className="report-wrong-list">
+                                {wrongSamples.map((sample) => (
+                                  <div
+                                    key={`${step.step_id}-${sample.response}`}
+                                    className="report-wrong-item"
+                                  >
+                                    <span>{sample.response}</span>
+                                    <span>{sample.count}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="report-section">
+                  <div className="report-section-title">Students</div>
+                  {reportStudents.length === 0 ? (
+                    <div className="report-empty">No student attempts yet.</div>
+                  ) : (
+                    <div className="report-students">
+                      {reportStudents.map((student) => (
+                        <div key={student.student_id} className="report-student-row">
+                          <div className="report-student-name">
+                            {student.student_id}
+                          </div>
+                          <div className="report-student-metrics">
+                            Completion: {formatPercent(student.completion_rate, 0)} |
+                            Wrong: {formatPercent(student.wrong_rate, 0)} | Skipped:{" "}
+                            {formatPercent(student.skip_rate, 0)} | Attempts:{" "}
+                            {student.attempts}
+                          </div>
+                          {student.at_risk && (
+                            <span className="report-student-flag">At risk</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {previewStatus && <div className="course-note">{previewStatus}</div>}
+        {reportStatus && <div className="course-note">{reportStatus}</div>}
       </main>
     </div>
   );
