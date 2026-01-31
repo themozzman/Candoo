@@ -359,7 +359,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 100%;
+  width: min(760px, 100%);
 }
 
 .math-keyboard.compact {
@@ -391,12 +391,12 @@ body {
 
 .math-keyboard-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(11, minmax(0, 1fr));
   gap: 6px;
 }
 
 .math-keyboard-grid.compact {
-  grid-template-columns: repeat(auto-fit, minmax(42px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
 }
 
 .math-keyboard-key {
