@@ -111,36 +111,11 @@ def submit_answer(
 
     reveal = False
     correct_answer = None
-    correction_help = None
     if not correct and not skipped:
         reveal_after = step["attemptPolicy"]["revealAfter"]
         if attempt_number >= reveal_after:
             reveal = True
             correct_answer = _correct_answer(step)
-            attempts = get_recent_attempts(db_path, session_id, step_id, limit=2)
-            if attempts:
-                correction_help = []
-                for attempt in attempts:
-                    try:
-                        ai_feedback = generate_attempt_feedback(
-                            question=step.get("prompt", ""),
-                            correct_answer=correct_answer or "",
-                            attempt=attempt["response"],
-                            attempt_number=attempt["attempt_number"],
-                        )
-                    except AIFlowError:
-                        ai_feedback = {
-                            "steps": [],
-                            "why_wrong": "We couldn't generate a detailed explanation right now.",
-                        }
-                    correction_help.append(
-                        {
-                            "attempt_number": attempt["attempt_number"],
-                            "response": attempt["response"],
-                            "steps": ai_feedback.get("steps", []),
-                            "why_wrong": ai_feedback.get("why_wrong", ""),
-                        }
-                    )
 
     if not correct and grading_issue:
         feedback = PARSE_FEEDBACK.get(grading_issue, step["feedback"]["wrongHint"])
@@ -161,7 +136,7 @@ def submit_answer(
         "reveal": reveal,
         "feedback": feedback,
         "correctAnswer": correct_answer if reveal else None,
-        "correctionHelp": correction_help,
+        "analysisPending": bool(reveal),
         "gradingIssue": grading_issue,
         "next_step": _step_payload(next_step) if next_step else None,
     }
@@ -175,8 +150,54 @@ def _step_payload(step: dict) -> dict:
         "type": step["type"],
         "prompt": step["prompt"],
         "options": step.get("options", []),
+        "solution": step.get("solution"),
     }
     return payload
+
+
+def analyze_attempts(
+    session_id: str,
+    flow: dict,
+    step_id: str,
+    db_path: str,
+    expected_student_id: str | None = None,
+) -> list[dict]:
+    session = _get_session(db_path, session_id)
+    if session is None:
+        raise ValueError("Session not found")
+    if expected_student_id and session["student_id"] != expected_student_id:
+        raise ValueError("Session not found")
+    if session["flow_id"] != flow["id"]:
+        raise ValueError("Session not found")
+
+    step = flow["steps"].get(step_id)
+    if step is None:
+        raise ValueError("Step not found in flow")
+
+    correct_answer = _correct_answer(step)
+    attempts = get_recent_attempts(db_path, session_id, step_id, limit=2)
+    correction_help = []
+    for attempt in attempts:
+        try:
+            ai_feedback = generate_attempt_feedback(
+                question=step.get("prompt", ""),
+                correct_answer=correct_answer or "",
+                attempt=attempt["response"],
+                attempt_number=attempt["attempt_number"],
+            )
+        except AIFlowError:
+            ai_feedback = {
+                "steps": [],
+                "why_wrong": "We couldn't generate a detailed explanation right now.",
+            }
+        correction_help.append(
+            {
+                "attempt_number": attempt["attempt_number"],
+                "response": attempt["response"],
+                "why_wrong": ai_feedback.get("why_wrong", ""),
+            }
+        )
+    return correction_help
 
 
 def _next_step_id(step: dict, correct: bool, skipped: bool) -> str | None:

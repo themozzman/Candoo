@@ -43,6 +43,13 @@ export function submitAnswer(sessionId, payload) {
   });
 }
 
+export function analyzeAttempts(sessionId, stepId) {
+  return request(`/session/${sessionId}/analysis`, {
+    method: "POST",
+    body: JSON.stringify({ step_id: stepId })
+  });
+}
+
 export function fetchReport(flowId) {
   return request(`/teacher/report?flow_id=${encodeURIComponent(flowId)}`);
 }

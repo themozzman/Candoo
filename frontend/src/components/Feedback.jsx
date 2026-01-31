@@ -1,17 +1,66 @@
-import React from "react";
+import React, { useMemo } from "react";
+import katex from "katex";
 
-export default function Feedback({ result }) {
+export default function Feedback({ result, solution, analysisLoading = false }) {
   if (!result) {
     return null;
   }
+
+  const solutionSteps = useMemo(() => {
+    if (!result.reveal) {
+      return [];
+    }
+    if (solution?.steps && Array.isArray(solution.steps)) {
+      return solution.steps;
+    }
+    if (result.correctAnswer) {
+      return [{ text: "Correct answer", math: result.correctAnswer }];
+    }
+    return [];
+  }, [solution, result]);
 
   const correctionHelp = Array.isArray(result.correctionHelp)
     ? result.correctionHelp
     : [];
 
+  const renderMath = (math) => {
+    if (!math) {
+      return "";
+    }
+    return katex.renderToString(math, {
+      throwOnError: false,
+      strict: false,
+      output: "html"
+    });
+  };
+
   return (
     <div className={`feedback ${result.correct ? "feedback-good" : "feedback-bad"}`}>
       <div className="feedback-text">{result.feedback}</div>
+      {solutionSteps.length > 0 && (
+        <div className="feedback-solution">
+          <div className="feedback-section-title">How to get the correct answer</div>
+          <div className="feedback-solution-steps">
+            {solutionSteps.map((step, index) => (
+              <div key={`solution-step-${index}`} className="feedback-solution-step">
+                {step.text && <div className="feedback-solution-text">{step.text}</div>}
+                {step.math && (
+                  <div
+                    className="feedback-solution-math"
+                    dangerouslySetInnerHTML={{ __html: renderMath(step.math) }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {analysisLoading && (
+        <div className="feedback-loading">
+          <span className="feedback-spinner" />
+          Analyzing your attempts…
+        </div>
+      )}
       {result.reveal && correctionHelp.length > 0 && (
         <div className="feedback-detail">
           {correctionHelp.map((attempt) => (
@@ -25,18 +74,6 @@ export default function Feedback({ result }) {
               <div className="feedback-attempt-answer">
                 Your answer: {attempt.response}
               </div>
-              {attempt.steps?.length > 0 && (
-                <div className="feedback-section">
-                  <div className="feedback-section-title">
-                    How to get the correct answer
-                  </div>
-                  <ol className="feedback-steps">
-                    {attempt.steps.map((step, index) => (
-                      <li key={`${attempt.attempt_number}-step-${index}`}>{step}</li>
-                    ))}
-                  </ol>
-                </div>
-              )}
               {attempt.why_wrong && (
                 <div className="feedback-section">
                   <div className="feedback-section-title">

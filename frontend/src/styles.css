@@ -1791,6 +1791,60 @@ body {
   color: inherit;
 }
 
+.feedback-solution {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-solution-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-solution-step {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.feedback-solution-text {
+  font-weight: 600;
+}
+
+.feedback-solution-math {
+  font-size: 18px;
+}
+
+.feedback-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.feedback-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(185, 28, 28, 0.3);
+  border-top-color: rgba(185, 28, 28, 0.8);
+  animation: feedback-spin 0.8s linear infinite;
+}
+
+@keyframes feedback-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .feedback-detail {
   display: flex;
   flex-direction: column;

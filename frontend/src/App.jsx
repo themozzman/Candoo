@@ -10,6 +10,7 @@ import {
   adminListUsers,
   adminPreviewFlow,
   adminSetCourseStudents,
+  analyzeAttempts,
   fetchCourses,
   fetchFlows,
   fetchMe,
@@ -80,6 +81,7 @@ export default function App() {
   const [totalSteps, setTotalSteps] = useState(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [pendingNextStep, setPendingNextStep] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
   const [returnView, setReturnView] = useState("catalog");
@@ -309,6 +311,7 @@ export default function App() {
     setTotalSteps(null);
     setIsAdvancing(false);
     setPendingNextStep(null);
+    setAnalysisLoading(false);
     if (advanceTimerRef.current) {
       clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = null;
@@ -347,6 +350,7 @@ export default function App() {
         skipped
       });
       setResult(data);
+      setAnalysisLoading(false);
       const nextStep = data.next_step;
       const advance = () => {
         if (nextStep) {
@@ -382,6 +386,31 @@ export default function App() {
       setError(err.message);
     }
   };
+
+  useEffect(() => {
+    if (!result?.analysisPending || !sessionId || !currentStep) {
+      return;
+    }
+    setAnalysisLoading(true);
+    analyzeAttempts(sessionId, currentStep.id)
+      .then((data) => {
+        setResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                analysisPending: false,
+                correctionHelp: data.correctionHelp || []
+              }
+            : prev
+        );
+      })
+      .catch(() => {
+        setResult((prev) =>
+          prev ? { ...prev, analysisPending: false, correctionHelp: [] } : prev
+        );
+      })
+      .finally(() => setAnalysisLoading(false));
+  }, [result?.analysisPending, sessionId, currentStep?.id]);
 
   const handleAdvanceNow = () => {
     if (!pendingNextStep || !currentStep) {
@@ -1420,7 +1449,11 @@ export default function App() {
                       }
                     />
                   )}
-                  <Feedback result={result} />
+                  <Feedback
+                    result={result}
+                    solution={currentStep.solution}
+                    analysisLoading={analysisLoading}
+                  />
                   {result?.correct && pendingNextStep && (
                     <button
                       className="button-ghost runner-next"

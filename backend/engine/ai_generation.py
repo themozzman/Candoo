@@ -60,6 +60,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '        "answer": { "kind": "exact", "value": "<option>" }  // MC\n'
         '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
         '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
+        '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
         '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
         '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
         '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" },\n'
@@ -75,6 +76,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- MC options must be full, meaningful answer strings (no single-letter placeholders like A/B/C/D).\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
+        "- For SA steps, include solution.steps with 2-5 concise items.\n"
+        "- Each solution step should have a short text and a math expression.\n"
         "- Use the provided flow_id.\n\n"
         f"flow_id: {flow_id}\n"
         f"Spec JSON:\n{json.dumps(spec, indent=2)}"
@@ -101,22 +104,17 @@ def generate_attempt_feedback(
         f"Correct answer: {correct_answer}\n"
         f"Student attempt (Attempt {attempt_number}): {attempt}\n\n"
         "Tasks:\n"
-        "1) Explain how to get the correct answer step-by-step.\n"
-        "2) Explain specifically why the student's attempt is wrong.\n\n"
+        "1) Explain specifically why the student's attempt is wrong.\n\n"
         "Return JSON with keys:\n"
-        '- steps: array of short strings\n'
         '- why_wrong: string\n'
     )
     data = _json_response(client, prompt)
     if not isinstance(data, dict):
         raise AIFlowError("Attempt feedback response must be a JSON object")
-    steps = data.get("steps")
     why_wrong = data.get("why_wrong")
-    if not isinstance(steps, list):
-        steps = []
     if not isinstance(why_wrong, str):
         why_wrong = ""
-    return {"steps": steps, "why_wrong": why_wrong}
+    return {"why_wrong": why_wrong}
 
 
 def _client() -> OpenAI:
