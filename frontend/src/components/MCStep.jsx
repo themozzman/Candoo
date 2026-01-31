@@ -6,7 +6,8 @@ export default function MCStep({
   onAnswer,
   onSkip,
   disabled = false,
-  hideSkip = false
+  hideSkip = false,
+  hideSubmit = false
 }) {
   return (
     <div className="step">
@@ -17,7 +18,7 @@ export default function MCStep({
             key={option}
             className="option-button"
             onClick={() => onAnswer(option)}
-            disabled={disabled}
+            disabled={disabled || hideSubmit}
           >
             {option}
           </button>

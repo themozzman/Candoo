@@ -1470,6 +1470,7 @@ export default function App() {
                       onSkip={() => handleSubmit("", true)}
                       disabled={isAdvancing}
                       hideSkip={Boolean(result?.reveal)}
+                      hideSubmit={Boolean(result?.reveal)}
                     />
                   ) : (
                     <SAStep
@@ -1486,6 +1487,7 @@ export default function App() {
                       }
                       forceHideKeyboard={Boolean(result?.reveal)}
                       hideSkip={Boolean(result?.reveal)}
+                      hideSubmit={Boolean(result?.reveal)}
                     />
                   )}
                   <Feedback
