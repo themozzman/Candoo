@@ -1764,11 +1764,11 @@ body {
 
 .feedback {
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 18px 20px;
   font-size: 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
 }
 
 .feedback-good {
@@ -1807,7 +1807,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.6);
 }
@@ -1817,7 +1817,7 @@ body {
 }
 
 .feedback-solution-math {
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .feedback-loading {
@@ -1848,21 +1848,21 @@ body {
 .feedback-detail {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 6px;
-  padding-top: 8px;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 12px;
   border-top: 1px dashed rgba(185, 28, 28, 0.25);
 }
 
 .feedback-attempt {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
 .feedback-attempt-title {
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1879,7 +1879,7 @@ body {
 
 .feedback-section-title {
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -1890,8 +1890,8 @@ body {
 }
 
 .feedback-why {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .feedback-status {

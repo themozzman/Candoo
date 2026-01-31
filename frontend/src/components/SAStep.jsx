@@ -90,7 +90,8 @@ export default function SAStep({
   onSkip,
   showMathKeyboard = false,
   disabled = false,
-  revealedAnswer = ""
+  revealedAnswer = "",
+  forceHideKeyboard = false
 }) {
   const [value, setValue] = useState("");
   useEffect(() => {
@@ -99,6 +100,11 @@ export default function SAStep({
     }
   }, [revealedAnswer]);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    if (forceHideKeyboard) {
+      setKeyboardOpen(false);
+    }
+  }, [forceHideKeyboard]);
   const [activeTab, setActiveTab] = useState("basic");
   const inputRef = useRef(null);
   const isSpotError = /identify the error/i.test(step.prompt || "");
@@ -177,7 +183,7 @@ export default function SAStep({
           isSpotError ? "e.g., f'(x)=2x sin(x) + x^2 cos(x)" : undefined
         }
       />
-      {showMathKeyboard && (
+      {showMathKeyboard && !forceHideKeyboard && (
         <>
           <div className="math-keyboard-toggle-row">
             <button

@@ -78,6 +78,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"
         "- Each solution step should have a short text and a math expression.\n"
+        "- The math expression should show the algebraic transformation or intermediate form.\n"
         "- Use the provided flow_id.\n\n"
         f"flow_id: {flow_id}\n"
         f"Spec JSON:\n{json.dumps(spec, indent=2)}"
@@ -104,7 +105,8 @@ def generate_attempt_feedback(
         f"Correct answer: {correct_answer}\n"
         f"Student attempt (Attempt {attempt_number}): {attempt}\n\n"
         "Tasks:\n"
-        "1) Explain specifically why the student's attempt is wrong.\n\n"
+        "1) Explain specifically why the student's attempt is wrong.\n"
+        "Start the response with: \"Your answer is incorrect\".\n\n"
         "Return JSON with keys:\n"
         '- why_wrong: string\n'
     )

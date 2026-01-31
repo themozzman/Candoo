@@ -1,7 +1,12 @@
 import React, { useMemo } from "react";
 import katex from "katex";
 
-export default function Feedback({ result, solution, analysisLoading = false }) {
+export default function Feedback({
+  result,
+  solution,
+  analysisLoading = false,
+  showAttemptAnalysis = false
+}) {
   if (!result) {
     return null;
   }
@@ -55,13 +60,13 @@ export default function Feedback({ result, solution, analysisLoading = false }) 
           </div>
         </div>
       )}
-      {analysisLoading && (
+      {showAttemptAnalysis && analysisLoading && (
         <div className="feedback-loading">
           <span className="feedback-spinner" />
           Analyzing your attempts…
         </div>
       )}
-      {result.reveal && correctionHelp.length > 0 && (
+      {showAttemptAnalysis && result.reveal && correctionHelp.length > 0 && (
         <div className="feedback-detail">
           {correctionHelp.map((attempt) => (
             <div
