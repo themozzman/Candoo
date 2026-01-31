@@ -10,6 +10,7 @@ import {
   adminListUsers,
   adminPreviewFlow,
   adminSetCourseStudents,
+  advanceSession,
   analyzeAttempts,
   fetchCourses,
   fetchFlows,
@@ -355,6 +356,7 @@ export default function App() {
       setResult(data);
       setAnalysisLoading(false);
       const nextStep = data.next_step;
+      const revealNextStep = data.revealNextStep;
       const advance = () => {
         if (nextStep) {
           if (nextStep.id !== currentStep.id) {
@@ -375,21 +377,25 @@ export default function App() {
           advanceTimerRef.current = null;
         }
       };
-      if (data.correct && nextStep && nextStep.id !== currentStep.id) {
-        setIsAdvancing(true);
-        setPendingNextStep(nextStep);
-        advanceTimerRef.current = window.setTimeout(advance, 3000);
-      } else if (nextStep) {
-        setCurrentStep(nextStep);
-        setStepStartTs(Date.now());
-        setFinishReady(false);
-      } else {
-        setFinishReady(true);
-        setIsAdvancing(false);
-        setPendingNextStep(null);
-        if (advanceTimerRef.current) {
-          clearTimeout(advanceTimerRef.current);
-          advanceTimerRef.current = null;
+      if (data.correct) {
+        if (nextStep && nextStep.id !== currentStep.id) {
+          setIsAdvancing(true);
+          setPendingNextStep(nextStep);
+          advanceTimerRef.current = window.setTimeout(advance, 3000);
+        } else if (nextStep) {
+          setCurrentStep(nextStep);
+          setStepStartTs(Date.now());
+          setFinishReady(false);
+        } else {
+          setFinishReady(true);
+          setPendingNextStep(null);
+        }
+      } else if (data.reveal) {
+        if (revealNextStep) {
+          setPendingNextStep(revealNextStep);
+          setFinishReady(false);
+        } else {
+          setFinishReady(true);
         }
       }
     } catch (err) {
@@ -423,7 +429,7 @@ export default function App() {
   }, [result?.analysisPending, sessionId, currentStep?.id]);
 
   const handleAdvanceNow = () => {
-    if (!pendingNextStep || !currentStep) {
+    if (!pendingNextStep || !currentStep || !sessionId) {
       return;
     }
     if (advanceTimerRef.current) {
@@ -432,23 +438,34 @@ export default function App() {
     }
     setIsAdvancing(true);
     const nextStep = pendingNextStep;
-    if (nextStep.id !== currentStep.id) {
-      setQuestionIndex((prev) => prev + 1);
-    }
-    setCurrentStep(nextStep);
-    setStepStartTs(Date.now());
-    setResult(null);
-    setIsAdvancing(false);
-    setPendingNextStep(null);
-    setFinishReady(false);
+    advanceSession(sessionId, nextStep.id)
+      .then(() => {
+        if (nextStep.id !== currentStep.id) {
+          setQuestionIndex((prev) => prev + 1);
+        }
+        setCurrentStep(nextStep);
+        setStepStartTs(Date.now());
+        setResult(null);
+        setPendingNextStep(null);
+        setFinishReady(false);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setIsAdvancing(false));
   };
 
   const handleFinishQuiz = () => {
-    setCurrentStep(null);
-    setStepStartTs(null);
-    setResult(null);
-    setPendingNextStep(null);
-    setFinishReady(false);
+    if (!sessionId) {
+      return;
+    }
+    advanceSession(sessionId, null)
+      .then(() => {
+        setCurrentStep(null);
+        setStepStartTs(null);
+        setResult(null);
+        setPendingNextStep(null);
+        setFinishReady(false);
+      })
+      .catch((err) => setError(err.message));
   };
 
   const handleAuthSubmit = async (event) => {
@@ -1477,7 +1494,7 @@ export default function App() {
                     analysisLoading={analysisLoading}
                     showAttemptAnalysis={currentStep.type === "SA"}
                   />
-                  {result?.correct && pendingNextStep && (
+                  {pendingNextStep && (
                     <button
                       className="button-ghost runner-next"
                       type="button"

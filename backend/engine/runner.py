@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pathlib import Path
 
-from .analytics import get_recent_attempts, log_attempt, write_report_snapshot
+from .analytics import get_recent_attempts, log_attempt, set_session_step, write_report_snapshot
 from .ai_generation import AIFlowError, generate_attempt_feedback
 import logging
 
@@ -84,6 +84,25 @@ def submit_answer(
             )
 
     next_step_id = _next_step_id(step, correct, skipped)
+    if not correct and not skipped:
+        next_step_id = step_id
+
+    reveal = False
+    correct_answer = None
+    reveal_next_step = None
+    if not correct and not skipped:
+        reveal_after = step["attemptPolicy"]["revealAfter"]
+        if attempt_number >= reveal_after:
+            reveal = True
+            correct_answer = _correct_answer(step)
+            reveal_next_step_id = step["next"].get("correct")
+            reveal_next_step = (
+                flow["steps"].get(reveal_next_step_id)
+                if reveal_next_step_id
+                else None
+            )
+            next_step_id = step_id
+
     log_attempt(
         db_path=db_path,
         session_id=session_id,
@@ -109,14 +128,6 @@ def submit_answer(
         reports_dir=reports_dir,
     )
 
-    reveal = False
-    correct_answer = None
-    if not correct and not skipped:
-        reveal_after = step["attemptPolicy"]["revealAfter"]
-        if attempt_number >= reveal_after:
-            reveal = True
-            correct_answer = _correct_answer(step)
-
     if not correct and grading_issue:
         feedback = PARSE_FEEDBACK.get(grading_issue, step["feedback"]["wrongHint"])
         logger.info(
@@ -139,6 +150,7 @@ def submit_answer(
         "analysisPending": bool(reveal),
         "gradingIssue": grading_issue,
         "next_step": _step_payload(next_step) if next_step else None,
+        "revealNextStep": _step_payload(reveal_next_step) if reveal_next_step else None,
     }
 
 
@@ -153,6 +165,25 @@ def _step_payload(step: dict) -> dict:
         "solution": step.get("solution"),
     }
     return payload
+
+
+def advance_session(
+    session_id: str,
+    flow: dict,
+    next_step_id: str | None,
+    db_path: str,
+    expected_student_id: str | None = None,
+) -> None:
+    session = _get_session(db_path, session_id)
+    if session is None:
+        raise ValueError("Session not found")
+    if expected_student_id and session["student_id"] != expected_student_id:
+        raise ValueError("Session not found")
+    if session["flow_id"] != flow["id"]:
+        raise ValueError("Session not found")
+    if next_step_id is not None and next_step_id not in flow["steps"]:
+        raise ValueError("Step not found in flow")
+    set_session_step(db_path, session_id, next_step_id)
 
 
 def analyze_attempts(

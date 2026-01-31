@@ -654,6 +654,22 @@ def log_attempt(
         conn.close()
 
 
+def set_session_step(db_path: str, session_id: str, next_step_id: str | None) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE sessions
+            SET current_step_id = ?
+            WHERE session_id = ?
+            """,
+            (next_step_id, session_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_recent_attempts(
     db_path: str,
     session_id: str,

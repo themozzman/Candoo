@@ -54,7 +54,7 @@ from engine.auth import (
     verify_signed_session,
 )
 from engine.loader import FlowValidationError, load_flows, validate_flow
-from engine.runner import analyze_attempts, start_session, submit_answer
+from engine.runner import advance_session, analyze_attempts, start_session, submit_answer
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -207,6 +207,10 @@ class AdminCourseStudentsSetRequest(BaseModel):
 
 class SessionAnalysisRequest(BaseModel):
     step_id: str
+
+
+class SessionAdvanceRequest(BaseModel):
+    next_step_id: str | None = None
 
 
 @app.on_event("startup")
@@ -374,6 +378,33 @@ def analyze_session_attempts(
                 expected_student_id=user["username"],
             )
             return {"correctionHelp": correction_help}
+        except ValueError as exc:
+            error = str(exc)
+            if error in {"Session not found", "Step not found in flow"}:
+                continue
+            raise HTTPException(status_code=400, detail=error) from exc
+    raise HTTPException(status_code=404, detail="Session not found")
+
+
+@app.post("/session/{session_id}/advance")
+def advance_session_step(
+    session_id: str,
+    payload: SessionAdvanceRequest,
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> dict:
+    _rate_limit(request, "advance")
+    flows = app.state.flows
+    for flow in flows.values():
+        try:
+            advance_session(
+                session_id=session_id,
+                flow=flow,
+                next_step_id=payload.next_step_id,
+                db_path=DB_PATH,
+                expected_student_id=user["username"],
+            )
+            return {"success": True}
         except ValueError as exc:
             error = str(exc)
             if error in {"Session not found", "Step not found in flow"}:

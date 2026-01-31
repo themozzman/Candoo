@@ -50,6 +50,13 @@ export function analyzeAttempts(sessionId, stepId) {
   });
 }
 
+export function advanceSession(sessionId, nextStepId) {
+  return request(`/session/${sessionId}/advance`, {
+    method: "POST",
+    body: JSON.stringify({ next_step_id: nextStepId })
+  });
+}
+
 export function fetchReport(flowId) {
   return request(`/teacher/report?flow_id=${encodeURIComponent(flowId)}`);
 }
