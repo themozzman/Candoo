@@ -78,17 +78,11 @@ export default function SAStep({
   onSkip,
   showMathKeyboard = false,
   disabled = false,
-  revealedAnswer = "",
   forceHideKeyboard = false,
   hideSkip = false,
   hideSubmit = false
 }) {
   const [value, setValue] = useState("");
-  useEffect(() => {
-    if (revealedAnswer) {
-      setValue(revealedAnswer);
-    }
-  }, [revealedAnswer]);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   useEffect(() => {
     if (forceHideKeyboard) {
@@ -147,6 +141,9 @@ export default function SAStep({
 
   const handleSubmit = (event) => {
     event.preventDefault();
+    if (hideSubmit) {
+      return;
+    }
     onAnswer(value);
   };
 
@@ -162,7 +159,7 @@ export default function SAStep({
         </div>
       )}
       <input
-        className={`step-input${revealedAnswer ? " step-input-reveal" : ""}`}
+        className="step-input"
         type="text"
         ref={inputRef}
         value={value}

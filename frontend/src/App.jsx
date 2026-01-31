@@ -1480,11 +1480,6 @@ export default function App() {
                       onSkip={() => handleSubmit("", true)}
                       showMathKeyboard={isMathCourse}
                       disabled={isAdvancing}
-                      revealedAnswer={
-                        result?.reveal && result?.correctAnswer
-                          ? result.correctAnswer
-                          : ""
-                      }
                       forceHideKeyboard={Boolean(result?.reveal)}
                       hideSkip={Boolean(result?.reveal)}
                       hideSubmit={Boolean(result?.reveal)}
