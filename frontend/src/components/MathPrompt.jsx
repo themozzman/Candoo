@@ -8,6 +8,27 @@ function splitPrompt(prompt) {
   if (!prompt) {
     return { text: "", math: "" };
   }
+  const usingMatch = prompt.match(/\s+using\s+/i);
+  if (usingMatch) {
+    const usingIdx = prompt.toLowerCase().indexOf(" using ");
+    const beforeUsing = prompt.slice(0, usingIdx).trim();
+    const usingClause = prompt.slice(usingIdx + 7).trim();
+    if (usingClause) {
+      const mathStart = beforeUsing.search(MATH_TRIGGER);
+      if (mathStart >= 0) {
+        const instruction = beforeUsing.slice(0, mathStart).trim().replace(/[:\s]+$/, "");
+        const math = beforeUsing.slice(mathStart).trim();
+        if (math) {
+          return {
+            text: instruction
+              ? `${instruction} using ${usingClause}`
+              : `Using ${usingClause}`,
+            math
+          };
+        }
+      }
+    }
+  }
   if (prompt.includes(":")) {
     const [text, ...rest] = prompt.split(":");
     return { text: `${text}:`, math: rest.join(":").trim() };

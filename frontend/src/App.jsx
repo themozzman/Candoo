@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
 import {
   adminApproveFlow,
@@ -79,9 +79,11 @@ export default function App() {
   const [questionIndex, setQuestionIndex] = useState(1);
   const [totalSteps, setTotalSteps] = useState(null);
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [pendingNextStep, setPendingNextStep] = useState(null);
   const [error, setError] = useState("");
   const [stepStartTs, setStepStartTs] = useState(null);
   const [returnView, setReturnView] = useState("catalog");
+  const advanceTimerRef = useRef(null);
 
   const adminEmails = ["andrestoussieh3@gmail.com"];
   const adminUsernames = ["andrestoussieh"];
@@ -306,6 +308,11 @@ export default function App() {
     setQuestionIndex(1);
     setTotalSteps(null);
     setIsAdvancing(false);
+    setPendingNextStep(null);
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
   };
 
   const handleStart = async () => {
@@ -340,7 +347,6 @@ export default function App() {
         skipped
       });
       setResult(data);
-      setIsAdvancing(true);
       const nextStep = data.next_step;
       const advance = () => {
         if (nextStep) {
@@ -355,11 +361,46 @@ export default function App() {
         }
         setResult(null);
         setIsAdvancing(false);
+        setPendingNextStep(null);
+        if (advanceTimerRef.current) {
+          clearTimeout(advanceTimerRef.current);
+          advanceTimerRef.current = null;
+        }
       };
-      window.setTimeout(advance, 750);
+      if (data.correct && nextStep && nextStep.id !== currentStep.id) {
+        setIsAdvancing(true);
+        setPendingNextStep(nextStep);
+        advanceTimerRef.current = window.setTimeout(advance, 3000);
+      } else if (nextStep) {
+        setCurrentStep(nextStep);
+        setStepStartTs(Date.now());
+      } else {
+        setCurrentStep(null);
+        setStepStartTs(null);
+      }
     } catch (err) {
       setError(err.message);
     }
+  };
+
+  const handleAdvanceNow = () => {
+    if (!pendingNextStep || !currentStep) {
+      return;
+    }
+    if (advanceTimerRef.current) {
+      clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    setIsAdvancing(true);
+    const nextStep = pendingNextStep;
+    if (nextStep.id !== currentStep.id) {
+      setQuestionIndex((prev) => prev + 1);
+    }
+    setCurrentStep(nextStep);
+    setStepStartTs(Date.now());
+    setResult(null);
+    setIsAdvancing(false);
+    setPendingNextStep(null);
   };
 
   const handleAuthSubmit = async (event) => {
@@ -1375,6 +1416,15 @@ export default function App() {
                     />
                   )}
                   <Feedback result={result} />
+                  {result?.correct && pendingNextStep && (
+                    <button
+                      className="button-ghost runner-next"
+                      type="button"
+                      onClick={handleAdvanceNow}
+                    >
+                      Next question →
+                    </button>
+                  )}
                 </>
               ) : sessionId ? (
                 <div className="session-complete">

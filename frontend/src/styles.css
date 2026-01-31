@@ -244,6 +244,13 @@ body {
   padding: 6px 10px;
 }
 
+.runner-next {
+  align-self: flex-end;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f766e;
+}
+
 .button-primary:disabled,
 .button-secondary:disabled {
   cursor: not-allowed;
