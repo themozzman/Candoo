@@ -8,6 +8,7 @@ import {
   adminDeleteUser,
   adminGenerateSpec,
   adminListUsers,
+  adminPreviewFlow,
   adminSetCourseStudents,
   fetchCourses,
   fetchFlows,
@@ -22,6 +23,7 @@ import {
 import MCStep from "./components/MCStep.jsx";
 import SAStep from "./components/SAStep.jsx";
 import Feedback from "./components/Feedback.jsx";
+import MathPrompt from "./components/MathPrompt.jsx";
 
 export default function App() {
   const [courses, setCourses] = useState([]);
@@ -54,6 +56,9 @@ export default function App() {
   const [newStudentUsername, setNewStudentUsername] = useState("");
   const [newStudentPassword, setNewStudentPassword] = useState("");
   const [pendingStudents, setPendingStudents] = useState([]);
+  const [previewFlow, setPreviewFlow] = useState(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState("");
   const [courseStudentCounts, setCourseStudentCounts] = useState({});
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
@@ -559,6 +564,17 @@ export default function App() {
     setNewStudentPassword("");
   };
 
+  const handlePreviewFlow = async (flowId) => {
+    setPreviewStatus("");
+    try {
+      const data = await adminPreviewFlow(adminToken || "", flowId);
+      setPreviewFlow(data.flow);
+      setPreviewOpen(true);
+    } catch (err) {
+      setPreviewStatus(err.message);
+    }
+  };
+
   const handleAdminDeleteUser = async (username) => {
     if (!username) {
       return;
@@ -1041,7 +1057,7 @@ export default function App() {
                             <button
                               className="quiz-button"
                               type="button"
-                              onClick={() => handleStudentStartQuiz(flow.id)}
+                              onClick={() => handlePreviewFlow(flow.id)}
                             >
                               Preview
                             </button>
@@ -1262,6 +1278,55 @@ export default function App() {
             </div>
           </section>
         )}
+
+        {previewOpen && previewFlow && (
+          <div className="preview-overlay" onClick={() => setPreviewOpen(false)}>
+            <div
+              className="preview-modal"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="preview-header">
+                <div>
+                  <div className="preview-title">{previewFlow.title}</div>
+                  {previewFlow.statement && (
+                    <div className="preview-subtitle">{previewFlow.statement}</div>
+                  )}
+                </div>
+                <button
+                  className="preview-close"
+                  type="button"
+                  onClick={() => setPreviewOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="preview-list">
+                {previewFlow.steps.map((step, index) => (
+                  <div key={step.id} className="preview-item">
+                    <div className="preview-step-title">
+                      Question {index + 1}
+                      <span className="preview-step-type">{step.type}</span>
+                    </div>
+                    <MathPrompt prompt={step.prompt} />
+                    {step.type === "MC" ? (
+                      <div className="preview-options">
+                        {step.options.map((option) => (
+                          <div key={option} className="preview-option">
+                            {option}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="preview-short-answer">Short answer</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {previewStatus && <div className="course-note">{previewStatus}</div>}
       </main>
     </div>
   );

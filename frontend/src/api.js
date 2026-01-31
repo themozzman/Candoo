@@ -106,6 +106,13 @@ export function adminApproveFlow(token, flowId) {
   });
 }
 
+export function adminPreviewFlow(token, flowId) {
+  return request("/admin/flows/preview", {
+    method: "POST",
+    body: JSON.stringify({ token, flow_id: flowId })
+  });
+}
+
 export function adminListUsers(token) {
   return request("/admin/users/list", {
     method: "POST",

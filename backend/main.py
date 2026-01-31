@@ -171,6 +171,11 @@ class AdminFlowApproveRequest(BaseModel):
     flow_id: str
 
 
+class AdminFlowPreviewRequest(BaseModel):
+    token: str
+    flow_id: str
+
+
 class AdminEmailStatusRequest(BaseModel):
     token: str
 
@@ -511,6 +516,33 @@ def admin_ai_flow_approve(payload: AdminFlowApproveRequest) -> dict:
     mark_ai_flow_approved(DB_PATH, payload.flow_id)
     _reload_flows()
     return {"success": True, "flow_id": payload.flow_id, "course_id": record["course_id"]}
+
+
+@app.post("/admin/flows/preview")
+def admin_flow_preview(
+    payload: AdminFlowPreviewRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    flow = app.state.flows.get(payload.flow_id)
+    if flow is None:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    steps = [
+        {
+            "id": step["id"],
+            "type": step["type"],
+            "prompt": step["prompt"],
+            "options": step.get("options", []),
+        }
+        for step in flow["steps"].values()
+    ]
+    return {
+        "flow": {
+            "id": flow["id"],
+            "title": flow.get("title"),
+            "statement": flow.get("statement"),
+            "steps": steps,
+        }
+    }
 
 
 @app.post("/admin/email/status")
