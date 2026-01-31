@@ -1037,9 +1037,18 @@ export default function App() {
                       courseFlows.map((flow) => (
                         <div key={flow.id} className="quiz-row">
                           <div className="quiz-title">{flow.title}</div>
-                          <button className="quiz-button" type="button">
-                            View Reports
-                          </button>
+                          <div className="quiz-actions">
+                            <button
+                              className="quiz-button"
+                              type="button"
+                              onClick={() => handleStudentStartQuiz(flow.id)}
+                            >
+                              Preview
+                            </button>
+                            <button className="quiz-button" type="button">
+                              View Reports
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}

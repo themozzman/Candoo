@@ -1100,6 +1100,12 @@ body {
   cursor: pointer;
 }
 
+.quiz-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .course-subheader {
   font-size: 16px;
   font-weight: 600;
