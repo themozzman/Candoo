@@ -291,8 +291,8 @@ export default function SAStep({
   };
 
   const handleFraction = () => {
-    const template = `\n\n${fractionBar}\n`;
-    insertTemplate(template, 1, 0);
+    const template = `\n${fractionBar}\n`;
+    insertTemplate(template, 0, 0);
   };
 
   const handleExpN = () => {
