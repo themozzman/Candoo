@@ -8,6 +8,7 @@ const KEYBOARD_TABS = [
     keys: [
       { label: "x²", action: "power2" },
       { label: "xⁿ", action: "powerN" },
+      { label: "□", action: "placeholderBox" },
       { label: "ⁿ√", action: "nthRoot" },
       { label: "÷", insert: "÷" },
       { label: "log", insert: "log(" },
@@ -192,6 +193,8 @@ export default function SAStep({
   const superscriptPlaceholder = "ⁿ";
   const placeholderMarker = "\u2060";
   const placeholderToken = `${superscriptPlaceholder}${placeholderMarker}`;
+  const placeholderBox = "□";
+  const superscriptPlaceholderBox = "▫";
   const superscriptDigits = Object.values(superscriptMap);
   const superscriptLetters = Object.values(superscriptLetterMap);
   const superscriptToNormal = {
@@ -206,7 +209,8 @@ export default function SAStep({
   const isSuperscriptChar = (char) =>
     superscriptDigits.includes(char) ||
     superscriptLetters.includes(char) ||
-    char === superscriptPlaceholder;
+    char === superscriptPlaceholder ||
+    char === superscriptPlaceholderBox;
 
   const toSuperscript = (valueStr) => {
     if (!valueStr || !/^\d+$/.test(valueStr)) {
@@ -266,6 +270,15 @@ export default function SAStep({
     updateValue(template, template.length);
   };
 
+  const handlePlaceholderBox = () => {
+    if (superscriptModeRef.current) {
+      insertText(superscriptPlaceholderBox);
+      superscriptModeRef.current = true;
+      return;
+    }
+    insertText(placeholderBox);
+  };
+
   const handleExpN = () => {
     insertTemplate(`e${placeholderToken}`, 1, placeholderToken.length);
     superscriptModeRef.current = true;
@@ -292,6 +305,9 @@ export default function SAStep({
         break;
       case "powerN":
         handlePowerN();
+        break;
+      case "placeholderBox":
+        handlePlaceholderBox();
         break;
       case "expN":
         handleExpN();
@@ -326,6 +342,7 @@ export default function SAStep({
     normalized = normalized.replace(/∛\(/g, "root(");
     normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
     normalized = normalized.replace(/□/g, "");
+    normalized = normalized.replace(/▫/g, "");
     normalized = normalized.replace(new RegExp(placeholderMarker, "g"), "");
     normalized = normalized.replace(/√\(/g, "sqrt(");
     normalized = normalized.replace(/∫\[(.+?),(.+?)\]\((.+)\)/g, "Integral($3, (x, $1, $2))");
