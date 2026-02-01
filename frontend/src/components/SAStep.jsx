@@ -8,7 +8,7 @@ const KEYBOARD_TABS = [
     keys: [
       { label: "x²", action: "power2" },
       { label: "xⁿ", action: "powerN" },
-      { label: "□", action: "placeholderBox" },
+      { label: "□/□", action: "fraction" },
       { label: "ⁿ√", action: "nthRoot" },
       { label: "÷", insert: "÷" },
       { label: "log", insert: "log(" },
@@ -234,6 +234,24 @@ export default function SAStep({
     return superscriptLetterMap[lowered] || char;
   };
 
+  const moveSelectionToNextPlaceholder = () => {
+    const { start, end } = getSelection();
+    const selected = value.slice(start, end);
+    const isSelectedPlaceholder =
+      selected === placeholderBox || selected === superscriptPlaceholderBox;
+    const searchStart = isSelectedPlaceholder ? end : start;
+    const nextIndex = value
+      .slice(searchStart)
+      .search(new RegExp(`[${placeholderBox}${superscriptPlaceholderBox}]`));
+    if (nextIndex === -1) {
+      return false;
+    }
+    const targetIndex = searchStart + nextIndex;
+    updateValue(value, targetIndex, targetIndex + 1);
+    superscriptModeRef.current = value[targetIndex] === superscriptPlaceholderBox;
+    return true;
+  };
+
 
   const wrapBase = (base) => {
     if (!base) {
@@ -270,13 +288,13 @@ export default function SAStep({
     updateValue(template, template.length);
   };
 
-  const handlePlaceholderBox = () => {
-    if (superscriptModeRef.current) {
-      insertText(superscriptPlaceholderBox);
-      superscriptModeRef.current = true;
-      return;
-    }
-    insertText(placeholderBox);
+  const handleFraction = () => {
+    const box = superscriptModeRef.current
+      ? superscriptPlaceholderBox
+      : placeholderBox;
+    const template = `${box}/${box}`;
+    const selectStart = template.indexOf(box);
+    updateValue(template, selectStart, selectStart + 1);
   };
 
   const handleExpN = () => {
@@ -306,8 +324,8 @@ export default function SAStep({
       case "powerN":
         handlePowerN();
         break;
-      case "placeholderBox":
-        handlePlaceholderBox();
+      case "fraction":
+        handleFraction();
         break;
       case "expN":
         handleExpN();
@@ -395,11 +413,16 @@ export default function SAStep({
           if (!showMathKeyboard || disabled) {
             return;
           }
+          if (event.key === "ArrowDown" || event.key === "Tab") {
+            if (moveSelectionToNextPlaceholder()) {
+              event.preventDefault();
+              return;
+            }
+          }
           if (
             event.key === "ArrowRight" ||
             event.key === "ArrowLeft" ||
-            event.key === "ArrowUp" ||
-            event.key === "ArrowDown"
+            event.key === "ArrowUp"
           ) {
             superscriptModeRef.current = false;
             return;
