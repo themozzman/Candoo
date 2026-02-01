@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import katex from "katex";
 
 const MATH_TRIGGER =
-  /[=\^]|\\|sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi|π|\b[a-zA-Z]\s*\(/i;
+  /[=\^]|\\|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π|\b[a-zA-Z]\s*\(/i;
 
 function splitPrompt(prompt) {
   if (!prompt) {
