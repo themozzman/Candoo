@@ -196,6 +196,7 @@ export default function SAStep({
   const placeholderBox = "□";
   const superscriptPlaceholderBox = "▫";
   const superscriptSlash = "⁄";
+  const fractionBar = "—";
   const superscriptDigits = Object.values(superscriptMap);
   const superscriptLetters = Object.values(superscriptLetterMap);
   const superscriptToNormal = {
@@ -293,8 +294,7 @@ export default function SAStep({
     const box = superscriptModeRef.current
       ? superscriptPlaceholderBox
       : placeholderBox;
-    const slash = superscriptModeRef.current ? superscriptSlash : "/";
-    const template = `${box}${slash}${box}`;
+    const template = `${box}\n${fractionBar}\n${box}`;
     const selectStart = template.indexOf(box);
     updateValue(template, selectStart, selectStart + 1);
   };
@@ -365,6 +365,7 @@ export default function SAStep({
     normalized = normalized.replace(/▫/g, "");
     normalized = normalized.replace(new RegExp(placeholderMarker, "g"), "");
     normalized = normalized.replace(/⁄/g, "/");
+    normalized = normalized.replace(/\s*\n\s*[—-]+\s*\n\s*/g, "/");
     normalized = normalized.replace(/√\(/g, "sqrt(");
     normalized = normalized.replace(/∫\[(.+?),(.+?)\]\((.+)\)/g, "Integral($3, (x, $1, $2))");
     normalized = normalized.replace(/∫/g, "Integral(");
@@ -406,9 +407,8 @@ export default function SAStep({
           Enter the fully corrected answer, not just the error.
         </div>
       )}
-      <input
+      <textarea
         className="step-input"
-        type="text"
         ref={inputRef}
         value={value}
         onChange={(event) => setValue(event.target.value)}
