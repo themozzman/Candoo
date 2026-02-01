@@ -3,9 +3,9 @@ import katex from "katex";
 import MathPrompt from "./MathPrompt.jsx";
 
 const MATH_TRIGGER =
-  /[=\^*]|\\|sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi|π|\b[a-zA-Z]\s*\(/i;
+  /[=\^*]|\\|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π|\b[a-zA-Z]\s*\(/i;
 const MATH_TOKEN =
-  /[0-9^*=\\()[\]{}]|sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi|π/i;
+  /[0-9^*=\\()[\]{}]|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi)\b|π/i;
 
 function escapeTextToken(value) {
   return value.replace(/\\/g, "\\textbackslash ").replace(/[{}]/g, "\\$&");
