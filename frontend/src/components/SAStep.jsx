@@ -291,12 +291,8 @@ export default function SAStep({
   };
 
   const handleFraction = () => {
-    const box = superscriptModeRef.current
-      ? superscriptPlaceholderBox
-      : placeholderBox;
-    const template = `${box}\n${fractionBar}\n${box}`;
-    const selectStart = template.indexOf(box);
-    insertTemplate(template, selectStart, 1);
+    const template = `\n\n${fractionBar}\n`;
+    insertTemplate(template, 1, 0);
   };
 
   const handleExpN = () => {
