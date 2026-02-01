@@ -8,7 +8,7 @@ const KEYBOARD_TABS = [
     keys: [
       { label: "x²", action: "power2" },
       { label: "xⁿ", action: "powerN" },
-      { label: "□/□", action: "fraction" },
+      { label: "□\n—\n□", action: "fraction" },
       { label: "ⁿ√", action: "nthRoot" },
       { label: "÷", insert: "÷" },
       { label: "log", insert: "log(" },
@@ -492,17 +492,26 @@ export default function SAStep({
                 ))}
               </div>
               <div className="math-keyboard-grid compact">
-                {activeKeys.map((key) => (
+                {activeKeys.map((key) => {
+                  const label = key.label ?? "";
+                  const isMultiline = typeof label === "string" && label.includes("\n");
+                  return (
                   <button
                     key={`${activeTab}-${key.label}`}
                     type="button"
                     className="math-keyboard-key compact"
                     onClick={() => handleKeyAction(key)}
                     disabled={disabled}
+                    style={
+                      isMultiline
+                        ? { whiteSpace: "pre-line", lineHeight: 1.05 }
+                        : undefined
+                    }
                   >
-                    {key.label}
+                    {label}
                   </button>
-                ))}
+                  );
+                })}
               </div>
               <div className="math-keyboard-actions compact">
                 <button
