@@ -323,6 +323,12 @@ body {
   background: #f8fafc;
 }
 
+.mathlive-input {
+  width: 100%;
+  min-height: 44px;
+  line-height: 1.4;
+}
+
 .step-input-reveal {
   border-color: #fca5a5;
   background: #fef2f2;
