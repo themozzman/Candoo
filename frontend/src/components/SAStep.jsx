@@ -161,6 +161,11 @@ export default function SAStep({
     "8": "⁸",
     "9": "⁹"
   };
+  const superscriptPlaceholder = "ⁿ";
+  const superscriptDigits = Object.values(superscriptMap);
+
+  const isSuperscriptChar = (char) =>
+    superscriptDigits.includes(char) || char === superscriptPlaceholder;
 
   const toSuperscript = (valueStr) => {
     if (!valueStr || !/^\d+$/.test(valueStr)) {
@@ -195,8 +200,8 @@ export default function SAStep({
 
   const handlePowerN = () => {
     const base = value || "x";
-    const template = `${wrapBase(base)}^□`;
-    const selectStart = template.indexOf("□");
+    const template = `${wrapBase(base)}${superscriptPlaceholder}`;
+    const selectStart = template.indexOf(superscriptPlaceholder);
     updateValue(template, selectStart, selectStart + 1);
   };
 
@@ -207,7 +212,7 @@ export default function SAStep({
   };
 
   const handleExpN = () => {
-    insertTemplate("e^□", 2);
+    insertTemplate(`e${superscriptPlaceholder}`, 1);
   };
 
   const handleNthRoot = () => {
@@ -258,6 +263,7 @@ export default function SAStep({
         .join("");
       return `${base}^(${digits})`;
     });
+    normalized = normalized.replace(/ⁿ/g, "");
     normalized = normalized.replace(/∛\(/g, "root(");
     normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
     normalized = normalized.replace(/□/g, "");
@@ -308,6 +314,28 @@ export default function SAStep({
         ref={inputRef}
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (!showMathKeyboard || disabled) {
+            return;
+          }
+          if (event.key === "^") {
+            event.preventDefault();
+            insertTemplate(superscriptPlaceholder, 0);
+            return;
+          }
+          if (/^\d$/.test(event.key)) {
+            const { start, end } = getSelection();
+            const selected = value.slice(start, end);
+            const prevChar = value[start - 1];
+            const shouldSuperscript =
+              (selected && isSuperscriptChar(selected)) ||
+              (!selected && isSuperscriptChar(prevChar));
+            if (shouldSuperscript) {
+              event.preventDefault();
+              insertText(superscriptMap[event.key]);
+            }
+          }
+        }}
         onFocus={() => setKeyboardOpen(true)}
         disabled={disabled}
         placeholder={
