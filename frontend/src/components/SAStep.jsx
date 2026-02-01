@@ -193,8 +193,8 @@ export default function SAStep({
   const superscriptPlaceholder = "ⁿ";
   const placeholderMarker = "\u2060";
   const placeholderToken = `${superscriptPlaceholder}${placeholderMarker}`;
-  const placeholderBox = "□";
-  const superscriptPlaceholderBox = "▫";
+  const placeholderBox = "▭";
+  const superscriptPlaceholderBox = "▯";
   const superscriptSlash = "⁄";
   const fractionBar = "—";
   const superscriptDigits = Object.values(superscriptMap);
@@ -291,8 +291,12 @@ export default function SAStep({
   };
 
   const handleFraction = () => {
-    const template = `\n${fractionBar}\n`;
-    insertTemplate(template, 0, 0);
+    const box = superscriptModeRef.current
+      ? superscriptPlaceholderBox
+      : placeholderBox;
+    const template = `${box}\n${fractionBar}\n${box}`;
+    const selectStart = template.indexOf(box);
+    insertTemplate(template, selectStart, 1);
   };
 
   const handleExpN = () => {
@@ -357,8 +361,8 @@ export default function SAStep({
     );
     normalized = normalized.replace(/∛\(/g, "root(");
     normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
-    normalized = normalized.replace(/□/g, "");
-    normalized = normalized.replace(/▫/g, "");
+    normalized = normalized.replace(/[□▭]/g, "");
+    normalized = normalized.replace(/[▫▯]/g, "");
     normalized = normalized.replace(new RegExp(placeholderMarker, "g"), "");
     normalized = normalized.replace(/⁄/g, "/");
     normalized = normalized.replace(/\s*\n\s*[—-]+\s*\n\s*/g, "/");
