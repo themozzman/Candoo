@@ -323,12 +323,6 @@ body {
   background: #f8fafc;
 }
 
-.step-input {
-  min-height: 68px;
-  line-height: 1.4;
-  resize: vertical;
-}
-
 .step-input-reveal {
   border-color: #fca5a5;
   background: #fef2f2;

@@ -296,7 +296,7 @@ export default function SAStep({
       : placeholderBox;
     const template = `${box}\n${fractionBar}\n${box}`;
     const selectStart = template.indexOf(box);
-    updateValue(template, selectStart, selectStart + 1);
+    insertTemplate(template, selectStart, 1);
   };
 
   const handleExpN = () => {
