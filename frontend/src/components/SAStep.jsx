@@ -8,7 +8,7 @@ const KEYBOARD_TABS = [
     keys: [
       { label: "x²", action: "power2" },
       { label: "xⁿ", action: "powerN" },
-      { label: "□\n—\n□", action: "fraction" },
+      { label: "░\n—\n░", action: "fraction" },
       { label: "ⁿ√", action: "nthRoot" },
       { label: "÷", insert: "÷" },
       { label: "log", insert: "log(" },
@@ -193,8 +193,8 @@ export default function SAStep({
   const superscriptPlaceholder = "ⁿ";
   const placeholderMarker = "\u2060";
   const placeholderToken = `${superscriptPlaceholder}${placeholderMarker}`;
-  const placeholderBox = "▭";
-  const superscriptPlaceholderBox = "▯";
+  const placeholderBox = "░";
+  const superscriptPlaceholderBox = "▒";
   const superscriptSlash = "⁄";
   const fractionBar = "—";
   const superscriptDigits = Object.values(superscriptMap);
@@ -361,8 +361,8 @@ export default function SAStep({
     );
     normalized = normalized.replace(/∛\(/g, "root(");
     normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
-    normalized = normalized.replace(/[□▭]/g, "");
-    normalized = normalized.replace(/[▫▯]/g, "");
+    normalized = normalized.replace(/[□▭░]/g, "");
+    normalized = normalized.replace(/[▫▯▒]/g, "");
     normalized = normalized.replace(new RegExp(placeholderMarker, "g"), "");
     normalized = normalized.replace(/⁄/g, "/");
     normalized = normalized.replace(/\s*\n\s*[—-]+\s*\n\s*/g, "/");
