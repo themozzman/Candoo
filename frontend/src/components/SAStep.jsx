@@ -89,6 +89,7 @@ export default function SAStep({
   }, [forceHideKeyboard]);
   const [activeTab, setActiveTab] = useState("basic");
   const inputRef = useRef(null);
+  const suppressSuperscriptRef = useRef(false);
   const isSpotError = /identify the error/i.test(step.prompt || "");
 
   const getSelection = () => {
@@ -239,6 +240,18 @@ export default function SAStep({
     return superscriptLetterMap[lowered] || char;
   };
 
+  const updateSuperscriptSuppression = () => {
+    const { start, end } = getSelection();
+    if (start !== end) {
+      suppressSuperscriptRef.current = false;
+      return;
+    }
+    const nextChar = value[start];
+    const prevChar = getPrevNonMarkerChar(value, start);
+    suppressSuperscriptRef.current =
+      isSuperscriptChar(nextChar) && !isSuperscriptChar(prevChar);
+  };
+
   const wrapBase = (base) => {
     if (!base) {
       return "x";
@@ -384,6 +397,13 @@ export default function SAStep({
           if (!showMathKeyboard || disabled) {
             return;
           }
+          if (
+            suppressSuperscriptRef.current &&
+            /^[a-zA-Z0-9]$/.test(event.key)
+          ) {
+            suppressSuperscriptRef.current = false;
+            return;
+          }
           if (event.key === "^") {
             event.preventDefault();
             insertTemplate(placeholderToken, 0, placeholderToken.length);
@@ -405,6 +425,8 @@ export default function SAStep({
             insertText(toSuperscriptLetter(event.key));
           }
         }}
+        onKeyUp={updateSuperscriptSuppression}
+        onClick={updateSuperscriptSuppression}
         onFocus={() => setKeyboardOpen(true)}
         disabled={disabled}
         placeholder={
