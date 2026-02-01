@@ -195,6 +195,7 @@ export default function SAStep({
   const placeholderToken = `${superscriptPlaceholder}${placeholderMarker}`;
   const placeholderBox = "□";
   const superscriptPlaceholderBox = "▫";
+  const superscriptSlash = "⁄";
   const superscriptDigits = Object.values(superscriptMap);
   const superscriptLetters = Object.values(superscriptLetterMap);
   const superscriptToNormal = {
@@ -292,7 +293,8 @@ export default function SAStep({
     const box = superscriptModeRef.current
       ? superscriptPlaceholderBox
       : placeholderBox;
-    const template = `${box}/${box}`;
+    const slash = superscriptModeRef.current ? superscriptSlash : "/";
+    const template = `${box}${slash}${box}`;
     const selectStart = template.indexOf(box);
     updateValue(template, selectStart, selectStart + 1);
   };
@@ -362,6 +364,7 @@ export default function SAStep({
     normalized = normalized.replace(/□/g, "");
     normalized = normalized.replace(/▫/g, "");
     normalized = normalized.replace(new RegExp(placeholderMarker, "g"), "");
+    normalized = normalized.replace(/⁄/g, "/");
     normalized = normalized.replace(/√\(/g, "sqrt(");
     normalized = normalized.replace(/∫\[(.+?),(.+?)\]\((.+)\)/g, "Integral($3, (x, $1, $2))");
     normalized = normalized.replace(/∫/g, "Integral(");
