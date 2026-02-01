@@ -1,7 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
-import "mathlive/dist/mathlive.css";
+import "mathlive/static.css";
+import "mathlive/fonts.css";
 import "./styles.css";
 
 const root = createRoot(document.getElementById("root"));
