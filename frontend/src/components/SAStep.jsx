@@ -120,11 +120,11 @@ export default function SAStep({
     updateValue(nextValue, start + text.length);
   };
 
-  const insertTemplate = (template, selectStart) => {
+  const insertTemplate = (template, selectStart, selectLength = 1) => {
     const { start, end } = getSelection();
     const nextValue = `${value.slice(0, start)}${template}${value.slice(end)}`;
     const selectionStart = start + selectStart;
-    updateValue(nextValue, selectionStart, selectionStart + 1);
+    updateValue(nextValue, selectionStart, selectionStart + selectLength);
   };
 
   const backspace = () => {
@@ -161,11 +161,51 @@ export default function SAStep({
     "8": "⁸",
     "9": "⁹"
   };
+  const superscriptLetterMap = {
+    a: "ᵃ",
+    b: "ᵇ",
+    c: "ᶜ",
+    d: "ᵈ",
+    e: "ᵉ",
+    f: "ᶠ",
+    g: "ᵍ",
+    h: "ʰ",
+    i: "ⁱ",
+    j: "ʲ",
+    k: "ᵏ",
+    l: "ˡ",
+    m: "ᵐ",
+    n: "ⁿ",
+    o: "ᵒ",
+    p: "ᵖ",
+    r: "ʳ",
+    s: "ˢ",
+    t: "ᵗ",
+    u: "ᵘ",
+    v: "ᵛ",
+    w: "ʷ",
+    x: "ˣ",
+    y: "ʸ",
+    z: "ᶻ"
+  };
   const superscriptPlaceholder = "ⁿ";
+  const placeholderMarker = "\u2060";
+  const placeholderToken = `${superscriptPlaceholder}${placeholderMarker}`;
   const superscriptDigits = Object.values(superscriptMap);
+  const superscriptLetters = Object.values(superscriptLetterMap);
+  const superscriptToNormal = {
+    ...Object.fromEntries(
+      Object.entries(superscriptMap).map(([digit, sup]) => [sup, digit])
+    ),
+    ...Object.fromEntries(
+      Object.entries(superscriptLetterMap).map(([letter, sup]) => [sup, letter])
+    )
+  };
 
   const isSuperscriptChar = (char) =>
-    superscriptDigits.includes(char) || char === superscriptPlaceholder;
+    superscriptDigits.includes(char) ||
+    superscriptLetters.includes(char) ||
+    char === superscriptPlaceholder;
 
   const toSuperscript = (valueStr) => {
     if (!valueStr || !/^\d+$/.test(valueStr)) {
@@ -175,6 +215,28 @@ export default function SAStep({
       .split("")
       .map((char) => superscriptMap[char] || char)
       .join("");
+  };
+
+  const hasSuperscriptChar = (text) => {
+    if (!text) {
+      return false;
+    }
+    return [...text].some(isSuperscriptChar);
+  };
+
+  const getPrevNonMarkerChar = (text, index) => {
+    for (let idx = index - 1; idx >= 0; idx -= 1) {
+      const char = text[idx];
+      if (char !== placeholderMarker) {
+        return char;
+      }
+    }
+    return "";
+  };
+
+  const toSuperscriptLetter = (char) => {
+    const lowered = char.toLowerCase();
+    return superscriptLetterMap[lowered] || char;
   };
 
   const wrapBase = (base) => {
@@ -200,9 +262,9 @@ export default function SAStep({
 
   const handlePowerN = () => {
     const base = value || "x";
-    const template = `${wrapBase(base)}${superscriptPlaceholder}`;
+    const template = `${wrapBase(base)}${placeholderToken}`;
     const selectStart = template.indexOf(superscriptPlaceholder);
-    updateValue(template, selectStart, selectStart + 1);
+    updateValue(template, selectStart, selectStart + placeholderToken.length);
   };
 
   const handlePower2 = () => {
@@ -212,7 +274,7 @@ export default function SAStep({
   };
 
   const handleExpN = () => {
-    insertTemplate(`e${superscriptPlaceholder}`, 1);
+    insertTemplate(`e${placeholderToken}`, 1, placeholderToken.length);
   };
 
   const handleNthRoot = () => {
@@ -256,17 +318,21 @@ export default function SAStep({
       return raw;
     }
     let normalized = raw;
-    normalized = normalized.replace(/([A-Za-z0-9\)])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (_, base, sup) => {
-      const digits = sup
-        .split("")
-        .map((char) => Object.keys(superscriptMap).find((key) => superscriptMap[key] === char) || "")
-        .join("");
-      return `${base}^(${digits})`;
-    });
-    normalized = normalized.replace(/ⁿ/g, "");
+    normalized = normalized.replace(new RegExp(placeholderToken, "g"), "");
+    normalized = normalized.replace(
+      /([A-Za-z0-9\)])([⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ]+)/g,
+      (_, base, sup) => {
+        const exponent = sup
+          .split("")
+          .map((char) => superscriptToNormal[char] || "")
+          .join("");
+        return `${base}^(${exponent})`;
+      }
+    );
     normalized = normalized.replace(/∛\(/g, "root(");
     normalized = normalized.replace(/√\[(.+?)\]\((.+)\)/g, "root($2, $1)");
     normalized = normalized.replace(/□/g, "");
+    normalized = normalized.replace(new RegExp(placeholderMarker, "g"), "");
     normalized = normalized.replace(/√\(/g, "sqrt(");
     normalized = normalized.replace(/∫\[(.+?),(.+?)\]\((.+)\)/g, "Integral($3, (x, $1, $2))");
     normalized = normalized.replace(/∫/g, "Integral(");
@@ -320,20 +386,23 @@ export default function SAStep({
           }
           if (event.key === "^") {
             event.preventDefault();
-            insertTemplate(superscriptPlaceholder, 0);
+            insertTemplate(placeholderToken, 0, placeholderToken.length);
             return;
           }
-          if (/^\d$/.test(event.key)) {
-            const { start, end } = getSelection();
-            const selected = value.slice(start, end);
-            const prevChar = value[start - 1];
-            const shouldSuperscript =
-              (selected && isSuperscriptChar(selected)) ||
-              (!selected && isSuperscriptChar(prevChar));
-            if (shouldSuperscript) {
-              event.preventDefault();
-              insertText(superscriptMap[event.key]);
-            }
+          const { start, end } = getSelection();
+          const selected = value.slice(start, end);
+          const prevChar = getPrevNonMarkerChar(value, start);
+          const shouldSuperscript =
+            (selected && hasSuperscriptChar(selected)) ||
+            (!selected && isSuperscriptChar(prevChar));
+          if (shouldSuperscript && /^\d$/.test(event.key)) {
+            event.preventDefault();
+            insertText(superscriptMap[event.key]);
+            return;
+          }
+          if (shouldSuperscript && /^[a-zA-Z]$/.test(event.key)) {
+            event.preventDefault();
+            insertText(toSuperscriptLetter(event.key));
           }
         }}
         onFocus={() => setKeyboardOpen(true)}
