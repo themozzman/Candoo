@@ -89,6 +89,7 @@ export default function SAStep({
   }, [forceHideKeyboard]);
   const [activeTab, setActiveTab] = useState("basic");
   const inputRef = useRef(null);
+  const superscriptModeRef = useRef(false);
   const isSpotError = /identify the error/i.test(step.prompt || "");
 
   const getSelection = () => {
@@ -224,26 +225,6 @@ export default function SAStep({
     return [...text].some(isSuperscriptChar);
   };
 
-  const getPrevNonMarkerChar = (text, index) => {
-    for (let idx = index - 1; idx >= 0; idx -= 1) {
-      const char = text[idx];
-      if (char !== placeholderMarker) {
-        return char;
-      }
-    }
-    return "";
-  };
-
-  const getNextNonMarkerChar = (text, index) => {
-    for (let idx = index; idx < text.length; idx += 1) {
-      const char = text[idx];
-      if (char !== placeholderMarker) {
-        return char;
-      }
-    }
-    return "";
-  };
-
   const toSuperscriptLetter = (char) => {
     const lowered = char.toLowerCase();
     return superscriptLetterMap[lowered] || char;
@@ -276,6 +257,7 @@ export default function SAStep({
     const template = `${wrapBase(base)}${placeholderToken}`;
     const selectStart = template.indexOf(superscriptPlaceholder);
     updateValue(template, selectStart, selectStart + placeholderToken.length);
+    superscriptModeRef.current = true;
   };
 
   const handlePower2 = () => {
@@ -286,6 +268,7 @@ export default function SAStep({
 
   const handleExpN = () => {
     insertTemplate(`e${placeholderToken}`, 1, placeholderToken.length);
+    superscriptModeRef.current = true;
   };
 
   const handleNthRoot = () => {
@@ -395,31 +378,40 @@ export default function SAStep({
           if (!showMathKeyboard || disabled) {
             return;
           }
+          if (
+            event.key === "ArrowRight" ||
+            event.key === "ArrowLeft" ||
+            event.key === "ArrowUp" ||
+            event.key === "ArrowDown"
+          ) {
+            superscriptModeRef.current = false;
+            return;
+          }
           if (event.key === "^") {
             event.preventDefault();
             insertTemplate(placeholderToken, 0, placeholderToken.length);
+            superscriptModeRef.current = true;
             return;
           }
           const { start, end } = getSelection();
           const selected = value.slice(start, end);
-          const prevChar = getPrevNonMarkerChar(value, start);
-          const nextChar = getNextNonMarkerChar(value, start);
-          const inSuperscriptRun =
-            isSuperscriptChar(prevChar) && isSuperscriptChar(nextChar);
-          const atSuperscriptStart =
-            isSuperscriptChar(nextChar) && !isSuperscriptChar(prevChar);
           const shouldSuperscript =
-            (selected && hasSuperscriptChar(selected)) ||
-            (!selected && (inSuperscriptRun || atSuperscriptStart));
+            superscriptModeRef.current ||
+            (selected && hasSuperscriptChar(selected));
           if (shouldSuperscript && /^\d$/.test(event.key)) {
             event.preventDefault();
             insertText(superscriptMap[event.key]);
+            superscriptModeRef.current = true;
             return;
           }
           if (shouldSuperscript && /^[a-zA-Z]$/.test(event.key)) {
             event.preventDefault();
             insertText(toSuperscriptLetter(event.key));
+            superscriptModeRef.current = true;
           }
+        }}
+        onClick={() => {
+          superscriptModeRef.current = false;
         }}
         onFocus={() => setKeyboardOpen(true)}
         disabled={disabled}
