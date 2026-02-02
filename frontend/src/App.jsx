@@ -1459,6 +1459,14 @@ export default function App() {
                                       option && typeof option === "object"
                                         ? option.value
                                         : option;
+                                    const optionText =
+                                      option && typeof option === "object"
+                                        ? option.text || ""
+                                        : "";
+                                    const optionMath =
+                                      option && typeof option === "object"
+                                        ? option.math || ""
+                                        : "";
                                     const optionLabel =
                                       option && typeof option === "object"
                                         ? option.text || option.math || option.value || ""
@@ -1468,7 +1476,20 @@ export default function App() {
                                         key={optionValue || optIndex}
                                         className="preview-option"
                                       >
-                                        {optionLabel}
+                                        {optionText && <div>{optionText}</div>}
+                                        {optionMath && (
+                                          <div
+                                            className="preview-option-math"
+                                            dangerouslySetInnerHTML={{
+                                              __html: katex.renderToString(optionMath, {
+                                                throwOnError: false,
+                                                strict: false,
+                                                output: "html"
+                                              })
+                                            }}
+                                          />
+                                        )}
+                                        {!optionText && !optionMath && optionLabel}
                                       </div>
                                     );
                                   })}
@@ -1682,13 +1703,30 @@ export default function App() {
                         {step.options.map((option) => {
                           const optionValue =
                             option && typeof option === "object" ? option.value : option;
+                          const optionText =
+                            option && typeof option === "object" ? option.text || "" : "";
+                          const optionMath =
+                            option && typeof option === "object" ? option.math || "" : "";
                           const optionLabel =
                             option && typeof option === "object"
                               ? option.text || option.math || option.value || ""
                               : optionValue;
                           return (
                             <div key={optionValue} className="preview-option">
-                              {optionLabel}
+                              {optionText && <div>{optionText}</div>}
+                              {optionMath && (
+                                <div
+                                  className="preview-option-math"
+                                  dangerouslySetInnerHTML={{
+                                    __html: katex.renderToString(optionMath, {
+                                      throwOnError: false,
+                                      strict: false,
+                                      output: "html"
+                                    })
+                                  }}
+                                />
+                              )}
+                              {!optionText && !optionMath && optionLabel}
                             </div>
                           );
                         })}

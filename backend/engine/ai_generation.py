@@ -57,8 +57,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '        "type": "MC" | "SA",\n'
         '        "prompt_text": "<string>",\n'
         '        "prompt_math": "<latex or empty>",\n'
-        '        "options": ["<string>", "..."]  // MC only,\n'
-        '        "answer": { "kind": "exact", "value": "<option>" }  // MC\n'
+        '        "options": [ { "value": "<string>", "text": "<string>", "math": "<latex or empty>" } ]  // MC only,\n'
+        '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
         '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
         '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
         '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
@@ -78,6 +78,12 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Use prompt_text for the instruction only (no math tokens, no equations).\n"
         "- Use prompt_math for the math expression only (LaTeX), or empty if no math.\n"
         "- The UI will show prompt_text first and prompt_math underneath.\n"
+        "- For MC options, choose exactly one of these formats:\n"
+        "  1) All math options: text empty, math contains the full option in LaTeX.\n"
+        "  2) Mixed English + math: text contains the English clause, math contains the LaTeX expression.\n"
+        "     The UI will show text first and the math underneath for that option.\n"
+        "  3) All English options: text contains the full option, math is empty.\n"
+        "- MC option objects must include a stable value field used by the answer.\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"

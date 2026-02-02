@@ -1,4 +1,5 @@
 import React from "react";
+import katex from "katex";
 import MathPrompt from "./MathPrompt.jsx";
 
 export default function MCStep({
@@ -18,10 +19,17 @@ export default function MCStep({
             option && typeof option === "object" ? option.value : option;
           const optionKey =
             option && typeof option === "object" ? option.value : option;
-          const optionLabel =
-            option && typeof option === "object"
-              ? option.text || option.math || option.value || ""
-              : optionValue;
+          const optionText =
+            option && typeof option === "object" ? option.text || "" : "";
+          const optionMath =
+            option && typeof option === "object" ? option.math || "" : "";
+          const mathMarkup = optionMath
+            ? katex.renderToString(optionMath, {
+                throwOnError: false,
+                strict: false,
+                output: "html"
+              })
+            : "";
           return (
           <button
             key={optionKey}
@@ -29,7 +37,20 @@ export default function MCStep({
             onClick={() => onAnswer(optionValue)}
             disabled={disabled || hideSubmit}
           >
-            {optionLabel}
+            {option && typeof option === "object" ? (
+              <>
+                {optionText && <div className="option-text">{optionText}</div>}
+                {mathMarkup && (
+                  <div
+                    className="option-math"
+                    dangerouslySetInnerHTML={{ __html: mathMarkup }}
+                  />
+                )}
+                {!optionText && !mathMarkup && (option.value || "")}
+              </>
+            ) : (
+              optionValue
+            )}
           </button>
           );
         })}
