@@ -89,6 +89,7 @@ export default function App() {
   const [stepStartTs, setStepStartTs] = useState(null);
   const [returnView, setReturnView] = useState("catalog");
   const advanceTimerRef = useRef(null);
+  const flowsPollRef = useRef(null);
 
   const isAdmin = Boolean(authUser?.is_admin);
 
@@ -115,6 +116,13 @@ export default function App() {
       .catch((err) => setError(err.message));
   };
 
+  const stopFlowsPolling = () => {
+    if (flowsPollRef.current) {
+      clearInterval(flowsPollRef.current);
+      flowsPollRef.current = null;
+    }
+  };
+
   useEffect(() => {
     loadCourses(false);
     loadFlows();
@@ -127,6 +135,18 @@ export default function App() {
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin || viewMode !== "admin-course" || adminTab !== "quizzes") {
+      stopFlowsPolling();
+      return;
+    }
+    stopFlowsPolling();
+    flowsPollRef.current = window.setInterval(() => {
+      loadFlows();
+    }, 8000);
+    return () => stopFlowsPolling();
+  }, [isAdmin, viewMode, adminTab]);
 
   useEffect(() => {
     fetchMe()

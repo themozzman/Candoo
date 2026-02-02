@@ -311,6 +311,10 @@ def health() -> dict:
 @app.get("/flows")
 def list_flows() -> list[dict]:
     flows = app.state.flows
+    approved = list_approved_flows(DB_PATH)
+    if approved:
+        flows = {record["flow"]["id"]: record["flow"] for record in approved}
+        app.state.flows = flows
     return [
         {"id": flow["id"], "title": flow["title"], "topic": flow["topic"]}
         for flow in flows.values()
@@ -328,6 +332,16 @@ def list_courses_endpoint(user: dict = Depends(get_current_user)) -> list[dict]:
 def session_start(payload: StartSessionRequest, user: dict = Depends(get_current_user)) -> dict:
     flows = app.state.flows
     flow = flows.get(payload.flow_id)
+    if flow is None:
+        record = get_ai_flow(DB_PATH, payload.flow_id)
+        if record:
+            flow = record["flow"]
+            try:
+                validate_flow(flow, source=f"db:{payload.flow_id}")
+            except FlowValidationError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            flows[payload.flow_id] = flow
+            app.state.flows = flows
     if flow is None:
         raise HTTPException(status_code=404, detail="Flow not found")
     if not is_admin_user(user):
