@@ -9,7 +9,7 @@ from psycopg2.extras import execute_values
 
 TABLES: list[tuple[str, list[str]]] = [
     ("users", ["id", "username", "email", "password_hash", "created_at", "verified_at"]),
-    ("courses", ["id", "name", "subtitle", "description", "active_flow_id", "created_at"]),
+    ("courses", ["id", "name", "subtitle", "description", "tags", "active_flow_id", "created_at"]),
     ("ai_specs", ["id", "course_id", "topic", "spec_json", "status", "created_at"]),
     ("ai_flows", ["id", "spec_id", "course_id", "flow_json", "status", "created_at", "approved_at"]),
     ("user_courses", ["user_id", "course_id", "created_at"]),

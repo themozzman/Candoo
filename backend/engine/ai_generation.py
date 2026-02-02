@@ -15,6 +15,7 @@ class AIFlowError(RuntimeError):
 
 def generate_spec(topic: str, course: dict) -> dict:
     client = _client()
+    course_tags = _normalize_tags(course.get("tags"))
     prompt = (
         "You are a curriculum designer. Create a JSON teaching spec for the topic.\n"
         "Return ONLY valid JSON.\n\n"
@@ -29,6 +30,7 @@ def generate_spec(topic: str, course: dict) -> dict:
         "- notes: string\n\n"
         f"Topic: {topic}\n"
         f"Course: {course.get('id')} - {course.get('name')} ({course.get('subtitle')})\n"
+        f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
         "Question types allowed: MC, SA, SPOT_ERROR.\n"
         "Make analytics goals explicit so the flow can capture insights."
     )
@@ -37,11 +39,14 @@ def generate_spec(topic: str, course: dict) -> dict:
         raise AIFlowError("Spec response must be a JSON object")
     spec["topic"] = topic
     spec["course_id"] = course.get("id")
+    spec["course_tags"] = course_tags
     return spec
 
 
 def generate_flow(spec: dict, flow_id: str) -> dict:
     client = _client()
+    course_tags = _normalize_tags(spec.get("course_tags") or spec.get("tags"))
+    is_math_course = "math" in course_tags
     prompt = (
         "You are generating a learning flow JSON for the app.\n"
         "Return ONLY valid JSON that follows this schema:\n"
@@ -106,6 +111,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- The math expression should show the algebraic transformation or intermediate form.\n"
         "- Use the provided flow_id.\n\n"
         f"flow_id: {flow_id}\n"
+        f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
         f"Spec JSON:\n{json.dumps(spec, indent=2)}"
     )
     flow = _json_response(client, prompt)
@@ -113,8 +119,27 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
-    _validate_math_formatting(flow)
+    _validate_math_formatting(flow, is_math_course)
     return flow
+
+
+def _normalize_tags(value) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(tag).strip().lower() for tag in value if str(tag).strip()]
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return [str(tag).strip().lower() for tag in parsed if str(tag).strip()]
+        except json.JSONDecodeError:
+            pass
+        return [tag.strip().lower() for tag in raw.split(",") if tag.strip()]
+    return []
 
 
 def generate_attempt_feedback(
@@ -193,7 +218,9 @@ def _contains_english_words(value: str) -> bool:
     return bool(value and _ENGLISH_IN_MATH_RE.search(value))
 
 
-def _validate_math_formatting(flow: dict) -> None:
+def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
+    if not is_math_course:
+        return
     steps = flow.get("steps")
     if not isinstance(steps, dict):
         raise AIFlowError("Flow steps must be an object")

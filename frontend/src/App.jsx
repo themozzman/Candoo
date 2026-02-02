@@ -235,6 +235,10 @@ export default function App() {
     if (!selectedCourse) {
       return false;
     }
+    const tags = Array.isArray(selectedCourse.tags) ? selectedCourse.tags : [];
+    if (tags.map((tag) => String(tag).toLowerCase()).includes("math")) {
+      return true;
+    }
     const haystack = [
       selectedCourse.id,
       selectedCourse.name,

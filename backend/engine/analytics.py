@@ -130,6 +130,7 @@ def init_db(db_path: str) -> None:
                 name TEXT NOT NULL,
                 subtitle TEXT NOT NULL,
                 description TEXT NOT NULL,
+                tags TEXT,
                 active_flow_id TEXT,
                 created_at TEXT NOT NULL
             )
@@ -173,7 +174,9 @@ def init_db(db_path: str) -> None:
             """
         )
         _ensure_users_email_column(conn)
+        _ensure_course_tags_column(conn)
         _ensure_courses(conn)
+        _ensure_course_tag_values(conn)
         conn.commit()
     finally:
         conn.close()
@@ -202,12 +205,15 @@ def _ensure_courses(conn: "DBConnection") -> None:
     existing_rows = conn.execute("SELECT id FROM courses").fetchall()
     existing_ids = {row["id"] for row in existing_rows}
     now = _now_iso()
+    math_tags = json.dumps(["math"])
+    empty_tags = json.dumps([])
     defaults = [
         (
             "french-10a",
             "French 10A",
             "Introduction to French",
             "Begin your journey into French language and culture.",
+            empty_tags,
             None,
             now,
         ),
@@ -216,6 +222,7 @@ def _ensure_courses(conn: "DBConnection") -> None:
             "French 20B",
             "Intermediate French",
             "Continue developing your French language skills.",
+            empty_tags,
             None,
             now,
         ),
@@ -224,6 +231,7 @@ def _ensure_courses(conn: "DBConnection") -> None:
             "Calc 10B",
             "Calculus",
             "Explore derivatives, integrals, and their applications.",
+            math_tags,
             None,
             now,
         ),
@@ -232,6 +240,7 @@ def _ensure_courses(conn: "DBConnection") -> None:
             "Spanish 2",
             "Spanish",
             "Build confidence in conversational Spanish and grammar.",
+            empty_tags,
             None,
             now,
         ),
@@ -242,12 +251,48 @@ def _ensure_courses(conn: "DBConnection") -> None:
     conn.executemany(
         """
         INSERT INTO courses (
-            id, name, subtitle, description, active_flow_id, created_at
+            id, name, subtitle, description, tags, active_flow_id, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         missing,
     )
+
+
+def _ensure_course_tags_column(conn: "DBConnection") -> None:
+    if conn.use_postgres:
+        conn.execute("ALTER TABLE courses ADD COLUMN IF NOT EXISTS tags TEXT")
+    else:
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(courses)").fetchall()]
+        if "tags" not in columns:
+            conn.execute("ALTER TABLE courses ADD COLUMN tags TEXT")
+
+
+def _ensure_course_tag_values(conn: "DBConnection") -> None:
+    empty_tags = json.dumps([])
+    math_tags = json.dumps(["math"])
+    conn.execute("UPDATE courses SET tags = ? WHERE tags IS NULL OR tags = ''", (empty_tags,))
+    conn.execute(
+        """
+        UPDATE courses
+        SET tags = ?
+        WHERE id = ? AND (tags IS NULL OR tags = '' OR tags = ?)
+        """,
+        (math_tags, "calc-10b", empty_tags),
+    )
+
+
+def _parse_course_row(row: dict) -> dict:
+    data = dict(row)
+    tags_raw = data.get("tags")
+    if isinstance(tags_raw, str) and tags_raw.strip():
+        try:
+            data["tags"] = json.loads(tags_raw)
+        except json.JSONDecodeError:
+            data["tags"] = [tag.strip() for tag in tags_raw.split(",") if tag.strip()]
+    else:
+        data["tags"] = []
+    return data
 
 
 def list_courses(db_path: str) -> list[dict]:
@@ -256,12 +301,12 @@ def list_courses(db_path: str) -> list[dict]:
     try:
         rows = conn.execute(
             """
-            SELECT id, name, subtitle, description, active_flow_id
+            SELECT id, name, subtitle, description, tags, active_flow_id
             FROM courses
             ORDER BY id
             """
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [_parse_course_row(dict(row)) for row in rows]
     finally:
         conn.close()
 
@@ -272,7 +317,7 @@ def list_courses_for_user(db_path: str, user_id: int) -> list[dict]:
     try:
         rows = conn.execute(
             """
-            SELECT c.id, c.name, c.subtitle, c.description, c.active_flow_id
+            SELECT c.id, c.name, c.subtitle, c.description, c.tags, c.active_flow_id
             FROM courses c
             JOIN user_courses uc ON uc.course_id = c.id
             WHERE uc.user_id = ?
@@ -280,7 +325,7 @@ def list_courses_for_user(db_path: str, user_id: int) -> list[dict]:
             """,
             (user_id,),
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [_parse_course_row(dict(row)) for row in rows]
     finally:
         conn.close()
 
@@ -291,13 +336,13 @@ def get_course(db_path: str, course_id: str) -> dict | None:
     try:
         row = conn.execute(
             """
-            SELECT id, name, subtitle, description, active_flow_id
+            SELECT id, name, subtitle, description, tags, active_flow_id
             FROM courses
             WHERE id = ?
             """,
             (course_id,),
         ).fetchone()
-        return dict(row) if row else None
+        return _parse_course_row(dict(row)) if row else None
     finally:
         conn.close()
 
