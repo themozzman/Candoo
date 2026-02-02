@@ -5,7 +5,7 @@ const MATH_TRIGGER =
   /[=\^]|\\|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π|\b[a-zA-Z]\s*\(/i;
 
 const TAIL_KEYWORDS =
-  /\s+(to|and|then|so|where|with|for|if|when|find|given|assuming)\b/i;
+  /\s+(to|and|then|so|where|with|for|if|when|find|given|assuming|converges|diverges)\b/i;
 
 function adjustMathStart(raw, start) {
   if (start <= 0 || raw[start] !== "^") {
@@ -31,6 +31,14 @@ function splitMathTail(rawMath) {
     candidates.push({
       index: keywordMatch.index ?? -1,
       tailStart: keywordMatch.index ?? -1
+    });
+  }
+  const parenKeywordMatch = rawMath.match(/\)\s*(converges|diverges)\b/i);
+  if (parenKeywordMatch) {
+    const idx = parenKeywordMatch.index ?? -1;
+    candidates.push({
+      index: idx,
+      tailStart: idx + 1
     });
   }
   const punctuationMatch = rawMath.match(/[,;]\s+/);
