@@ -310,11 +310,9 @@ def health() -> dict:
 
 @app.get("/flows")
 def list_flows() -> list[dict]:
-    flows = app.state.flows
     approved = list_approved_flows(DB_PATH)
-    if approved:
-        flows = {record["flow"]["id"]: record["flow"] for record in approved}
-        app.state.flows = flows
+    flows = {record["flow"]["id"]: record["flow"] for record in approved}
+    app.state.flows = flows
     return [
         {"id": flow["id"], "title": flow["title"], "topic": flow["topic"]}
         for flow in flows.values()
