@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "katex/dist/katex.min.css";
+import katex from "katex";
 import {
   adminApproveFlow,
   adminApproveSpec,
@@ -51,6 +52,7 @@ export default function App() {
   const [adminFlowId, setAdminFlowId] = useState("");
   const [adminFlowText, setAdminFlowText] = useState("");
   const [adminStatus, setAdminStatus] = useState("");
+  const [adminChecklist, setAdminChecklist] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminCourseRosterId, setAdminCourseRosterId] = useState("");
   const [adminCourseStudentIds, setAdminCourseStudentIds] = useState([]);
@@ -92,6 +94,21 @@ export default function App() {
   const [debugPreviewJson, setDebugPreviewJson] = useState("");
   const [debugPreviewError, setDebugPreviewError] = useState("");
   const [debugPreviewSteps, setDebugPreviewSteps] = useState([]);
+
+  const defaultChecklist = [
+    { id: "spec", label: "Generating spec", status: "pending" },
+    { id: "flow", label: "Generating flow", status: "pending" },
+    { id: "validate", label: "Validating math formatting", status: "pending" },
+    { id: "ready", label: "Ready to publish", status: "pending" }
+  ];
+
+  const updateChecklist = (updates) => {
+    setAdminChecklist((prev) =>
+      (prev.length ? prev : defaultChecklist).map((step) =>
+        updates[step.id] ? { ...step, status: updates[step.id] } : step
+      )
+    );
+  };
 
   const debugPreviewEnabled =
     import.meta.env.DEV || import.meta.env.VITE_DEBUG_PREVIEW === "true";
@@ -596,6 +613,8 @@ export default function App() {
   const handleAdminGenerateSpec = async (event) => {
     event.preventDefault();
     setAdminStatus("");
+    setAdminChecklist(defaultChecklist);
+    updateChecklist({ spec: "in_progress", flow: "pending", validate: "pending", ready: "pending" });
     try {
       const courseId = adminCourseId || selectedCourseId;
       const data = await adminGenerateSpec(adminToken, adminTopic, courseId);
@@ -605,21 +624,26 @@ export default function App() {
       setAdminFlow(null);
       setAdminFlowId("");
       setAdminFlowText("");
+      updateChecklist({ spec: "done" });
     } catch (err) {
       setAdminStatus(err.message);
+      updateChecklist({ spec: "error" });
     }
   };
 
   const handleAdminApproveSpec = async () => {
     setAdminStatus("");
+    updateChecklist({ flow: "in_progress", validate: "pending", ready: "pending" });
     try {
       const override = adminSpecText ? JSON.parse(adminSpecText) : null;
       const data = await adminApproveSpec(adminToken, adminSpecId, override);
       setAdminFlow(data.flow);
       setAdminFlowId(data.flow_id);
       setAdminFlowText(JSON.stringify(data.flow, null, 2));
+      updateChecklist({ flow: "done", validate: "done", ready: "done" });
     } catch (err) {
       setAdminStatus(err.message);
+      updateChecklist({ flow: "error", validate: "error" });
     }
   };
 
@@ -1373,6 +1397,18 @@ export default function App() {
                         </form>
 
                         {adminStatus && <div className="admin-status">{adminStatus}</div>}
+                        {adminChecklist.length > 0 && (
+                          <div className="admin-checklist">
+                            {adminChecklist.map((step) => (
+                              <div key={step.id} className="admin-checklist-item">
+                                {step.status === "done" && "✓ "}
+                                {step.status === "error" && "✕ "}
+                                {step.status === "in_progress" && "• "}
+                                {step.label}
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                         {adminSpecId && (
                           <div className="admin-block">

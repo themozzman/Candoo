@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from openai import OpenAI
@@ -84,6 +85,20 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "     The UI will show text first and the math underneath for that option.\n"
         "  3) All English options: text contains the full option, math is empty.\n"
         "- MC option objects must include a stable value field used by the answer.\n"
+        "- If the course is non-math, prompt_math should be empty and options should be English-only.\n"
+        "- Self-check before output: ensure prompt_text has no math tokens and prompt_math has no English words.\n"
+        "- If any rule is violated, fix the JSON before returning it.\n"
+        "Examples (GOOD):\n"
+        '  prompt_text: "Evaluate the integral using limits."\n'
+        '  prompt_math: "\\\\int_{1}^{\\\\infty} \\\\frac{1}{x^2} \\\\; dx"\n'
+        '  options: [\n'
+        '    {"value":"opt1","text":"","math":"2x\\\\sin(x)+x^2\\\\cos(x)"},\n'
+        '    {"value":"opt2","text":"Converges because","math":"\\\\int_1^\\\\infty \\\\frac{1}{x^2} dx"},\n'
+        '    {"value":"opt3","text":"It diverges.","math":""}\n'
+        "  ]\n"
+        "Example (BAD):\n"
+        '  prompt_text: "Evaluate \\\\int_1^\\\\infty 1/x^2 dx"\n'
+        '  prompt_math: ""\n'
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"
@@ -98,6 +113,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
+    _validate_math_formatting(flow)
     return flow
 
 
@@ -157,3 +173,50 @@ def _json_response(client: OpenAI, prompt: str) -> dict:
 
 def now_label() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+
+
+_MATH_TOKEN_RE = re.compile(
+    r"[=^_]|\\|∫|∞|π|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|[a-zA-Z]\s*\^|[a-zA-Z]\s*\(",
+    flags=re.IGNORECASE,
+)
+_ENGLISH_IN_MATH_RE = re.compile(
+    r"\b(from|to|the|using|integral|evaluate|which|statement|converges|diverges|because|limit|approx)\b",
+    flags=re.IGNORECASE,
+)
+
+
+def _contains_math_tokens(value: str) -> bool:
+    return bool(value and _MATH_TOKEN_RE.search(value))
+
+
+def _contains_english_words(value: str) -> bool:
+    return bool(value and _ENGLISH_IN_MATH_RE.search(value))
+
+
+def _validate_math_formatting(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict):
+        raise AIFlowError("Flow steps must be an object")
+    for step in steps.values():
+        if not isinstance(step, dict):
+            continue
+        prompt_text = (step.get("prompt_text") or step.get("promptText") or "").strip()
+        prompt_math = (step.get("prompt_math") or step.get("promptMath") or "").strip()
+        if _contains_math_tokens(prompt_text) and not prompt_math:
+            raise AIFlowError("prompt_text contains math but prompt_math is empty")
+        if prompt_math and _contains_english_words(prompt_math):
+            raise AIFlowError("prompt_math contains English words")
+        if step.get("type") != "MC":
+            continue
+        options = step.get("options") or []
+        for option in options:
+            if not isinstance(option, dict):
+                continue
+            text = (option.get("text") or "").strip()
+            math = (option.get("math") or "").strip()
+            if text == "" and math == "":
+                raise AIFlowError("MC option is empty")
+            if _contains_math_tokens(text) and not math:
+                raise AIFlowError("MC option text contains math but math is empty")
+            if math and _contains_english_words(math):
+                raise AIFlowError("MC option math contains English words")
