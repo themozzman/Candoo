@@ -1,11 +1,13 @@
 import json
-import sqlite3
 from pathlib import Path
 from datetime import datetime, timezone
 
+from .db import connect_db, set_row_factory
+
 
 def init_db(db_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
+    auto_id = "SERIAL PRIMARY KEY" if conn.use_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
     try:
         conn.execute(
             """
@@ -20,9 +22,9 @@ def init_db(db_path: str) -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS attempts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {auto_id},
                 session_id TEXT NOT NULL,
                 flow_id TEXT NOT NULL,
                 student_id TEXT NOT NULL,
@@ -37,9 +39,9 @@ def init_db(db_path: str) -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {auto_id},
                 username TEXT NOT NULL UNIQUE,
                 email TEXT UNIQUE,
                 password_hash TEXT NOT NULL,
@@ -60,9 +62,9 @@ def init_db(db_path: str) -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS password_resets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {auto_id},
                 user_id INTEGER NOT NULL,
                 token_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -73,9 +75,9 @@ def init_db(db_path: str) -> None:
             """
         )
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS email_verifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {auto_id},
                 user_id INTEGER NOT NULL,
                 code_hash TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -177,12 +179,16 @@ def init_db(db_path: str) -> None:
         conn.close()
 
 
-def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
-    if "email" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
-    if "verified_at" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
+def _ensure_users_email_column(conn: "DBConnection") -> None:
+    if conn.use_postgres:
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at TEXT")
+    else:
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if "email" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        if "verified_at" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
     conn.execute(
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
@@ -191,9 +197,10 @@ def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
     )
 
 
-def _ensure_courses(conn: sqlite3.Connection) -> None:
+def _ensure_courses(conn: "DBConnection") -> None:
+    set_row_factory(conn)
     existing_rows = conn.execute("SELECT id FROM courses").fetchall()
-    existing_ids = {row[0] for row in existing_rows}
+    existing_ids = {row["id"] for row in existing_rows}
     now = _now_iso()
     defaults = [
         (
@@ -244,8 +251,8 @@ def _ensure_courses(conn: sqlite3.Connection) -> None:
 
 
 def list_courses(db_path: str) -> list[dict]:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         rows = conn.execute(
             """
@@ -260,8 +267,8 @@ def list_courses(db_path: str) -> list[dict]:
 
 
 def list_courses_for_user(db_path: str, user_id: int) -> list[dict]:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         rows = conn.execute(
             """
@@ -279,8 +286,8 @@ def list_courses_for_user(db_path: str, user_id: int) -> list[dict]:
 
 
 def get_course(db_path: str, course_id: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         row = conn.execute(
             """
@@ -296,7 +303,7 @@ def get_course(db_path: str, course_id: str) -> dict | None:
 
 
 def set_course_flow(db_path: str, course_id: str, flow_id: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -312,7 +319,7 @@ def set_course_flow(db_path: str, course_id: str, flow_id: str) -> None:
 
 
 def save_ai_spec(db_path: str, spec_id: str, course_id: str, topic: str, spec: dict) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -327,8 +334,8 @@ def save_ai_spec(db_path: str, spec_id: str, course_id: str, topic: str, spec: d
 
 
 def get_ai_spec(db_path: str, spec_id: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         row = conn.execute(
             """
@@ -350,7 +357,7 @@ def get_ai_spec(db_path: str, spec_id: str) -> dict | None:
 def save_ai_flow(
     db_path: str, flow_id: str, spec_id: str, course_id: str, flow: dict
 ) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -365,8 +372,8 @@ def save_ai_flow(
 
 
 def get_ai_flow(db_path: str, flow_id: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         row = conn.execute(
             """
@@ -386,7 +393,7 @@ def get_ai_flow(db_path: str, flow_id: str) -> dict | None:
 
 
 def mark_ai_flow_approved(db_path: str, flow_id: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -402,8 +409,8 @@ def mark_ai_flow_approved(db_path: str, flow_id: str) -> None:
 
 
 def list_users(db_path: str) -> list[dict]:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         rows = conn.execute(
             """
@@ -418,8 +425,8 @@ def list_users(db_path: str) -> list[dict]:
 
 
 def list_course_students(db_path: str, course_id: str) -> list[dict]:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         rows = conn.execute(
             """
@@ -437,7 +444,7 @@ def list_course_students(db_path: str, course_id: str) -> list[dict]:
 
 
 def user_has_course(db_path: str, user_id: int, course_id: str) -> bool:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         row = conn.execute(
             """
@@ -454,7 +461,7 @@ def user_has_course(db_path: str, user_id: int, course_id: str) -> bool:
 
 
 def set_course_students(db_path: str, course_id: str, user_ids: list[int]) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute("DELETE FROM user_courses WHERE course_id = ?", (course_id,))
         now = _now_iso()
@@ -471,7 +478,7 @@ def set_course_students(db_path: str, course_id: str, user_ids: list[int]) -> No
 
 
 def set_user_courses(db_path: str, user_id: int, course_ids: list[str]) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute("DELETE FROM user_courses WHERE user_id = ?", (user_id,))
         now = _now_iso()
@@ -488,8 +495,9 @@ def set_user_courses(db_path: str, user_id: int, course_ids: list[str]) -> None:
 
 
 def get_course_id_for_flow(db_path: str, flow_id: str) -> str | None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         row = conn.execute(
             """
             SELECT course_id FROM ai_flows
@@ -498,7 +506,7 @@ def get_course_id_for_flow(db_path: str, flow_id: str) -> str | None:
             (flow_id,),
         ).fetchone()
         if row:
-            return row[0]
+            return row["course_id"]
         row = conn.execute(
             """
             SELECT id FROM courses
@@ -506,13 +514,13 @@ def get_course_id_for_flow(db_path: str, flow_id: str) -> str | None:
             """,
             (flow_id,),
         ).fetchone()
-        return row[0] if row else None
+        return row["id"] if row else None
     finally:
         conn.close()
 
 
 def reset_auth_data(db_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute("DELETE FROM email_verifications")
         conn.execute("DELETE FROM password_resets")
@@ -524,7 +532,7 @@ def reset_auth_data(db_path: str) -> None:
 
 
 def reset_learning_data(db_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute("DELETE FROM attempts")
         conn.execute("DELETE FROM sessions")
@@ -534,7 +542,7 @@ def reset_learning_data(db_path: str) -> None:
 
 
 def reset_flow_data(db_path: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute("UPDATE courses SET active_flow_id = NULL")
         conn.execute("DELETE FROM ai_flows")
@@ -545,21 +553,31 @@ def reset_flow_data(db_path: str) -> None:
 
 
 def delete_user(db_path: str, username: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         user_row = conn.execute(
             "SELECT id, username FROM users WHERE username = ?",
             (username,),
         ).fetchone()
         if not user_row:
             return None
-        user_id, username_value = user_row
-        tables = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
+        user_id = user_row["id"]
+        username_value = user_row["username"]
+        if conn.use_postgres:
+            tables = {
+                row["table_name"]
+                for row in conn.execute(
+                    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+                ).fetchall()
+            }
+        else:
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            }
 
         deleted = {"user_id": user_id, "username": username_value}
 
@@ -618,7 +636,7 @@ def log_attempt(
     next_step_id: str | None,
 ) -> None:
     now = _now_iso()
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -655,7 +673,7 @@ def log_attempt(
 
 
 def set_session_step(db_path: str, session_id: str, next_step_id: str | None) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -676,8 +694,9 @@ def get_recent_attempts(
     step_id: str,
     limit: int = 2,
 ) -> list[dict]:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         rows = conn.execute(
             """
             SELECT attempt_number, response
@@ -692,7 +711,7 @@ def get_recent_attempts(
     finally:
         conn.close()
     attempts = [
-        {"attempt_number": row[0], "response": row[1]}
+        {"attempt_number": row["attempt_number"], "response": row["response"]}
         for row in reversed(rows)
     ]
     return attempts
@@ -714,8 +733,9 @@ def write_report_snapshot(db_path: str, flow: dict, reports_dir: Path) -> None:
 
 
 def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         summary = []
         wrong_samples = {}
         funnel = []
@@ -797,7 +817,9 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
                 """,
                 (flow_id, step_id),
             ).fetchall()
-            common_wrong = [{"response": row[0], "count": row[1]} for row in wrong_rows]
+            common_wrong = [
+                {"response": row["response"], "count": row["cnt"]} for row in wrong_rows
+            ]
             wrong_samples[step_id] = common_wrong
 
             insights = step.get("insights", {}) if isinstance(step.get("insights"), dict) else {}
@@ -832,7 +854,10 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
                     mis = entry.get("misconception") or entry.get("id")
                     if not response or not mis:
                         continue
-                    count = next((row[1] for row in wrong_rows if row[0] == response), 0)
+                    count = next(
+                        (row["cnt"] for row in wrong_rows if row["response"] == response),
+                        0,
+                    )
                     if count:
                         misconception_counts[mis] = misconception_counts.get(mis, 0) + count
 
@@ -887,14 +912,20 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
         conn.close()
 
 
-def _scalar(conn: sqlite3.Connection, query: str, params: tuple) -> int:
+def _scalar(conn: "DBConnection", query: str, params: tuple) -> int:
     row = conn.execute(query, params).fetchone()
-    return int(row[0]) if row and row[0] is not None else 0
+    if not row:
+        return 0
+    value = next(iter(row.values())) if isinstance(row, dict) else row[0]
+    return int(value) if value is not None else 0
 
 
-def _scalar_float(conn: sqlite3.Connection, query: str, params: tuple) -> float | None:
+def _scalar_float(conn: "DBConnection", query: str, params: tuple) -> float | None:
     row = conn.execute(query, params).fetchone()
-    return float(row[0]) if row and row[0] is not None else None
+    if not row:
+        return None
+    value = next(iter(row.values())) if isinstance(row, dict) else row[0]
+    return float(value) if value is not None else None
 
 
 def _now_iso() -> str:
@@ -902,10 +933,10 @@ def _now_iso() -> str:
 
 
 def _build_student_report(
-    conn: sqlite3.Connection, flow_id: str, steps: list[dict], total_steps: int
+    conn: "DBConnection", flow_id: str, steps: list[dict], total_steps: int
 ) -> list[dict]:
     students = [
-        row[0]
+        row["student_id"]
         for row in conn.execute(
             """
             SELECT DISTINCT student_id FROM attempts
@@ -983,7 +1014,14 @@ def _build_student_report(
             """,
             (flow_id, student_id),
         ).fetchone()
-        last_attempt_at = last_attempt[0] if last_attempt else None
+        if last_attempt:
+            last_attempt_at = (
+                next(iter(last_attempt.values()))
+                if isinstance(last_attempt, dict)
+                else last_attempt[0]
+            )
+        else:
+            last_attempt_at = None
 
         misconceptions = {}
         for step_id in step_ids:
@@ -1001,7 +1039,7 @@ def _build_student_report(
             ).fetchall()
             if rows:
                 misconceptions[step_id] = [
-                    {"response": row[0], "count": row[1]} for row in rows
+                    {"response": row["response"], "count": row["cnt"]} for row in rows
                 ]
 
         troublesome = None

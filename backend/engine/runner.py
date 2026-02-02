@@ -1,5 +1,5 @@
 import os
-import sqlite3
+from .db import connect_db, set_row_factory
 from uuid import uuid4
 
 from pathlib import Path
@@ -22,7 +22,7 @@ PARSE_FEEDBACK = {
 def start_session(flow: dict, student_id: str, db_path: str) -> tuple[str, dict]:
     session_id = str(uuid4())
     start_step_id = flow["startStepId"]
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -252,8 +252,8 @@ def _correct_answer(step: dict) -> str:
 
 
 def _get_session(db_path: str, session_id: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn = connect_db(db_path)
+    set_row_factory(conn)
     try:
         row = conn.execute(
             """
@@ -268,7 +268,7 @@ def _get_session(db_path: str, session_id: str) -> dict | None:
 
 
 def _count_attempts(db_path: str, session_id: str, step_id: str) -> int:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         row = conn.execute(
             """
@@ -277,6 +277,9 @@ def _count_attempts(db_path: str, session_id: str, step_id: str) -> int:
             """,
             (session_id, step_id),
         ).fetchone()
-        return int(row[0]) if row else 0
+        if not row:
+            return 0
+        value = next(iter(row.values())) if isinstance(row, dict) else row[0]
+        return int(value)
     finally:
         conn.close()

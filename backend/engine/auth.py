@@ -3,6 +3,14 @@ import json
 import os
 import secrets
 import sqlite3
+
+try:
+    from psycopg2 import IntegrityError as PgIntegrityError, OperationalError as PgOperationalError
+except Exception:  # pragma: no cover - optional dependency
+    PgIntegrityError = ()
+    PgOperationalError = ()
+
+from .db import connect_db, set_row_factory
 import smtplib
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -49,7 +57,7 @@ def _create_user(
         raise AuthError("Email must be valid")
     password_hash = hash_password(password)
     now = _now_iso()
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         try:
             conn.execute(
@@ -59,7 +67,7 @@ def _create_user(
                 """,
                 (username, email, password_hash, now, verified_at),
             )
-        except sqlite3.OperationalError as exc:
+        except (sqlite3.OperationalError, PgOperationalError) as exc:
             if "no such column: email" in str(exc):
                 _ensure_users_email_column(conn)
                 conn.execute(
@@ -72,34 +80,40 @@ def _create_user(
             else:
                 raise
         conn.commit()
+        set_row_factory(conn)
         user = conn.execute(
             "SELECT id, username, email, created_at, verified_at FROM users WHERE username = ?",
             (username,),
         ).fetchone()
         return {
-            "id": user[0],
-            "username": user[1],
-            "email": user[2],
-            "created_at": user[3],
-            "verified_at": user[4],
+            "id": user["id"],
+            "username": user["username"],
+            "email": user["email"],
+            "created_at": user["created_at"],
+            "verified_at": user["verified_at"],
         }
-    except sqlite3.IntegrityError as exc:
+    except (sqlite3.IntegrityError, PgIntegrityError) as exc:
         raise AuthError("Username or email already exists") from exc
     finally:
         conn.close()
 
 
-def _ensure_users_email_column(conn: sqlite3.Connection) -> None:
-    columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
-    if "email" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
-    if "verified_at" not in columns:
-        conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
+def _ensure_users_email_column(conn: "DBConnection") -> None:
+    if conn.use_postgres:
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
+        conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at TEXT")
+    else:
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if "email" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        if "verified_at" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN verified_at TEXT")
 
 
 def get_user_by_username(db_path: str, username: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         row = conn.execute(
             """
             SELECT id, username, email, password_hash, created_at, verified_at
@@ -110,20 +124,21 @@ def get_user_by_username(db_path: str, username: str) -> dict | None:
         if not row:
             return None
         return {
-            "id": row[0],
-            "username": row[1],
-            "email": row[2],
-            "password_hash": row[3],
-            "created_at": row[4],
-            "verified_at": row[5],
+            "id": row["id"],
+            "username": row["username"],
+            "email": row["email"],
+            "password_hash": row["password_hash"],
+            "created_at": row["created_at"],
+            "verified_at": row["verified_at"],
         }
     finally:
         conn.close()
 
 
 def get_user_by_email(db_path: str, email: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         row = conn.execute(
             """
             SELECT id, username, email, password_hash, created_at, verified_at
@@ -134,12 +149,12 @@ def get_user_by_email(db_path: str, email: str) -> dict | None:
         if not row:
             return None
         return {
-            "id": row[0],
-            "username": row[1],
-            "email": row[2],
-            "password_hash": row[3],
-            "created_at": row[4],
-            "verified_at": row[5],
+            "id": row["id"],
+            "username": row["username"],
+            "email": row["email"],
+            "password_hash": row["password_hash"],
+            "created_at": row["created_at"],
+            "verified_at": row["verified_at"],
         }
     finally:
         conn.close()
@@ -150,7 +165,7 @@ def create_password_reset(db_path: str, user_id: int, ttl_seconds: int) -> str:
     token_hash = sha256(token.encode("utf-8")).hexdigest()
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=ttl_seconds)
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -169,8 +184,9 @@ def verify_password_reset(db_path: str, token: str) -> dict | None:
     if not token:
         return None
     token_hash = sha256(token.encode("utf-8")).hexdigest()
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         row = conn.execute(
             """
             SELECT id, user_id, expires_at, used_at
@@ -181,19 +197,19 @@ def verify_password_reset(db_path: str, token: str) -> dict | None:
         ).fetchone()
         if not row:
             return None
-        expires_at = datetime.fromisoformat(row[2])
-        if row[3] is not None:
+        expires_at = datetime.fromisoformat(row["expires_at"])
+        if row["used_at"] is not None:
             return None
         if expires_at < datetime.now(timezone.utc):
             return None
-        return {"id": row[0], "user_id": row[1]}
+        return {"id": row["id"], "user_id": row["user_id"]}
     finally:
         conn.close()
 
 
 def mark_password_reset_used(db_path: str, reset_id: int) -> None:
     now = _now_iso()
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             "UPDATE password_resets SET used_at = ? WHERE id = ?",
@@ -206,7 +222,7 @@ def mark_password_reset_used(db_path: str, reset_id: int) -> None:
 
 def update_user_password(db_path: str, user_id: int, password: str) -> None:
     password_hash = hash_password(password)
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             "UPDATE users SET password_hash = ? WHERE id = ?",
@@ -222,7 +238,7 @@ def create_email_verification(db_path: str, user_id: int, ttl_seconds: int) -> s
     code_hash = sha256(code.encode("utf-8")).hexdigest()
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=ttl_seconds)
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -241,8 +257,9 @@ def verify_email_code(db_path: str, user_id: int, code: str) -> bool:
     if not code:
         return False
     code_hash = sha256(code.encode("utf-8")).hexdigest()
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         row = conn.execute(
             """
             SELECT id, expires_at, used_at
@@ -255,14 +272,14 @@ def verify_email_code(db_path: str, user_id: int, code: str) -> bool:
         ).fetchone()
         if not row:
             return False
-        if row[2] is not None:
+        if row["used_at"] is not None:
             return False
-        expires_at = datetime.fromisoformat(row[1])
+        expires_at = datetime.fromisoformat(row["expires_at"])
         if expires_at < datetime.now(timezone.utc):
             return False
         conn.execute(
             "UPDATE email_verifications SET used_at = ? WHERE id = ?",
-            (_now_iso(), row[0]),
+            (_now_iso(), row["id"]),
         )
         conn.commit()
         return True
@@ -272,7 +289,7 @@ def verify_email_code(db_path: str, user_id: int, code: str) -> bool:
 
 def mark_user_verified(db_path: str, user_id: int) -> None:
     now = _now_iso()
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             "UPDATE users SET verified_at = ? WHERE id = ?",
@@ -287,7 +304,7 @@ def create_session(db_path: str, user_id: int, ttl_seconds: int) -> dict:
     session_id = str(uuid4())
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=ttl_seconds)
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute(
             """
@@ -303,7 +320,7 @@ def create_session(db_path: str, user_id: int, ttl_seconds: int) -> dict:
 
 
 def delete_session(db_path: str, session_id: str) -> None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.execute("DELETE FROM auth_sessions WHERE session_id = ?", (session_id,))
         conn.commit()
@@ -312,8 +329,9 @@ def delete_session(db_path: str, session_id: str) -> None:
 
 
 def get_user_by_session(db_path: str, session_id: str) -> dict | None:
-    conn = sqlite3.connect(db_path)
+    conn = connect_db(db_path)
     try:
+        set_row_factory(conn)
         row = conn.execute(
             """
             SELECT users.id, users.username, users.email, auth_sessions.expires_at
@@ -325,10 +343,10 @@ def get_user_by_session(db_path: str, session_id: str) -> dict | None:
         ).fetchone()
         if not row:
             return None
-        expires_at = datetime.fromisoformat(row[3])
+        expires_at = datetime.fromisoformat(row["expires_at"])
         if expires_at < datetime.now(timezone.utc):
             return None
-        return {"id": row[0], "username": row[1], "email": row[2]}
+        return {"id": row["id"], "username": row["username"], "email": row["email"]}
     finally:
         conn.close()
 

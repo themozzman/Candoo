@@ -5,3 +5,4 @@ openai
 sympy
 certifi
 pytest
+psycopg2-binary

@@ -31,6 +31,7 @@ from engine.analytics import (
     user_has_course,
 )
 from engine.ai_generation import AIFlowError, generate_flow, generate_spec, now_label
+from engine.db import is_postgres
 from engine.auth import (
     AuthError,
     create_session,
@@ -66,7 +67,10 @@ else:
     primary_flows = ROOT_DIR / "shared" / "flows"
     fallback_flows = BASE_DIR / "shared" / "flows"
     FLOWS_DIR = primary_flows if primary_flows.exists() else fallback_flows
-DB_PATH = os.environ.get("DATABASE_PATH", str(ROOT_DIR / "backend" / "storage" / "app.db"))
+DB_PATH = os.environ.get(
+    "DATABASE_URL",
+    os.environ.get("DATABASE_PATH", str(ROOT_DIR / "backend" / "storage" / "app.db")),
+)
 REPORTS_PATH = os.environ.get("REPORTS_PATH", str(ROOT_DIR / "backend" / "reports"))
 AUTH_SECRET = os.environ.get("AUTH_SECRET", "dev-secret")
 SESSION_TTL_SECONDS = int(os.environ.get("SESSION_TTL_SECONDS", "86400"))
@@ -215,7 +219,8 @@ class SessionAdvanceRequest(BaseModel):
 
 @app.on_event("startup")
 def startup() -> None:
-    Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+    if not is_postgres(DB_PATH):
+        Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     Path(REPORTS_PATH).mkdir(parents=True, exist_ok=True)
     init_db(DB_PATH)
     try:
