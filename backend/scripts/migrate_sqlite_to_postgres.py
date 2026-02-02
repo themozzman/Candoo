@@ -43,9 +43,25 @@ def _sqlite_tables(conn: sqlite3.Connection) -> set[str]:
     return {row[0] for row in rows}
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return [row[1] for row in rows]
+
+
 def _fetch_rows(conn: sqlite3.Connection, table: str, columns: Iterable[str]) -> list[tuple]:
-    cols = ", ".join(columns)
-    return conn.execute(f"SELECT {cols} FROM {table}").fetchall()
+    available = set(_table_columns(conn, table))
+    selected = [col for col in columns if col in available]
+    if not selected:
+        return []
+    cols = ", ".join(selected)
+    rows = conn.execute(f"SELECT {cols} FROM {table}").fetchall()
+    if len(selected) == len(columns):
+        return rows
+    indices = [selected.index(col) if col in selected else None for col in columns]
+    normalized = []
+    for row in rows:
+        normalized.append(tuple(row[idx] if idx is not None else None for idx in indices))
+    return normalized
 
 
 def _truncate_tables(pg_conn, tables: Iterable[str]) -> None:
