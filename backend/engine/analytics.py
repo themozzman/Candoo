@@ -392,6 +392,28 @@ def get_ai_flow(db_path: str, flow_id: str) -> dict | None:
         conn.close()
 
 
+def list_approved_flows(db_path: str) -> list[dict]:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, flow_json
+            FROM ai_flows
+            WHERE status = ?
+            ORDER BY approved_at DESC, created_at DESC
+            """,
+            ("flow_approved",),
+        ).fetchall()
+        flows = []
+        for row in rows:
+            flow = json.loads(row["flow_json"])
+            flows.append({"id": row["id"], "flow": flow})
+        return flows
+    finally:
+        conn.close()
+
+
 def mark_ai_flow_approved(db_path: str, flow_id: str) -> None:
     conn = connect_db(db_path)
     try:

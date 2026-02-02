@@ -15,6 +15,7 @@ from engine.analytics import (
     get_teacher_report,
     init_db,
     delete_user,
+    list_approved_flows,
     list_courses,
     list_courses_for_user,
     list_course_students,
@@ -225,6 +226,10 @@ def startup() -> None:
     init_db(DB_PATH)
     try:
         flows = load_flows(FLOWS_DIR)
+        for record in list_approved_flows(DB_PATH):
+            flow = record["flow"]
+            validate_flow(flow, source=f"db:{record['id']}")
+            flows[flow["id"]] = flow
     except FlowValidationError as exc:
         raise RuntimeError(str(exc)) from exc
     app.state.flows = flows
@@ -257,6 +262,13 @@ def _rate_limit(request: Request, action: str) -> None:
 
 def _reload_flows() -> None:
     flows = load_flows(FLOWS_DIR)
+    for record in list_approved_flows(DB_PATH):
+        flow = record["flow"]
+        try:
+            validate_flow(flow, source=f"db:{record['id']}")
+        except FlowValidationError:
+            continue
+        flows[flow["id"]] = flow
     app.state.flows = flows
 
 
