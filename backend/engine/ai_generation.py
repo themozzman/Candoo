@@ -173,6 +173,7 @@ def _normalize_step_prompt(step: dict) -> None:
         prompt_text = step.get("prompt") or ""
     if not prompt_math and _contains_math(prompt_text):
         text, math = _split_prompt_text_math(prompt_text)
+        text, math = _repair_prompt_split(text, math)
         prompt_text = text
         prompt_math = math
     step["prompt_text"] = prompt_text.strip()
@@ -236,8 +237,29 @@ def _split_prompt_text_math(value: str) -> tuple[str, str]:
     if not match:
         return value.strip(), ""
     idx = match.start()
+    if idx > 0 and value[idx - 1].isalnum():
+        return value.strip(), ""
     text = value[:idx].strip()
     math = value[idx:].strip()
+    return text, math
+
+
+def _repair_prompt_split(text: str, math: str) -> tuple[str, str]:
+    if not text or not math:
+        return text, math
+    last_word = re.search(r"([A-Za-z]+)$", text)
+    first_word = re.match(r"^([A-Za-z]+)", math)
+    if not last_word or not first_word:
+        return text, math
+    if (last_word.group(1) + first_word.group(1)).lower() in {"sin", "cos", "tan", "sec", "csc", "cot"}:
+        merged = last_word.group(1) + first_word.group(1)
+        text = text[: -len(last_word.group(1))].rstrip()
+        math = math[len(first_word.group(1)) :].lstrip()
+        if math and not math.startswith("("):
+            math = f"{merged} {math}"
+        else:
+            math = f"{merged}{math}"
+        return text, math
     return text, math
 
 
