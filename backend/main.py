@@ -622,7 +622,9 @@ def admin_flow_preview(
         {
             "id": step["id"],
             "type": step["type"],
-            "prompt": step["prompt"],
+            "prompt": step.get("prompt"),
+            "prompt_text": step.get("prompt_text") or step.get("promptText"),
+            "prompt_math": step.get("prompt_math") or step.get("promptMath"),
             "options": step.get("options", []),
         }
         for step in flow["steps"].values()

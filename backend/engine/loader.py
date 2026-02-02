@@ -73,8 +73,17 @@ def validate_flow(flow: dict, source: str = "api") -> None:
 
 
 def _validate_step(step: dict, source: str) -> None:
-    for key in ["id", "type", "prompt", "answer", "feedback", "attemptPolicy", "next"]:
+    for key in ["id", "type", "answer", "feedback", "attemptPolicy", "next"]:
         _require(step, key, source, prefix=f"step {step.get('id')}")
+    if "prompt" not in step and "prompt_text" not in step and "promptText" not in step:
+        raise FlowValidationError(
+            f"{source}: step {step.get('id')} missing required prompt"
+        )
+    for key in ["prompt", "prompt_text", "promptText", "prompt_math", "promptMath"]:
+        if key in step and step[key] is not None and not isinstance(step[key], str):
+            raise FlowValidationError(
+                f"{source}: step {step.get('id')} {key} must be a string"
+            )
 
     step_type = step["type"]
     if step_type not in ALLOWED_STEP_TYPES:
@@ -91,6 +100,28 @@ def _validate_step(step: dict, source: str) -> None:
             raise FlowValidationError(
                 f"{source}: step {step['id']} options cannot be empty for MC"
             )
+        option_values = []
+        for option in step["options"]:
+            if isinstance(option, str):
+                option_values.append(option)
+                continue
+            if not isinstance(option, dict):
+                raise FlowValidationError(
+                    f"{source}: step {step['id']} option must be string or object"
+                )
+            value = option.get("value")
+            if not isinstance(value, str) or not value:
+                raise FlowValidationError(
+                    f"{source}: step {step['id']} option.value is required"
+                )
+            option_values.append(value)
+            for field in ["text", "math"]:
+                if field in option and option[field] is not None and not isinstance(
+                    option[field], str
+                ):
+                    raise FlowValidationError(
+                        f"{source}: step {step['id']} option.{field} must be a string"
+                    )
 
     answer = step["answer"]
     if not isinstance(answer, dict):
@@ -105,7 +136,7 @@ def _validate_step(step: dict, source: str) -> None:
             raise FlowValidationError(
                 f"{source}: step {step['id']} answer.value is required for MC"
             )
-        if answer["value"] not in step["options"]:
+        if answer["value"] not in option_values:
             raise FlowValidationError(
                 f"{source}: step {step['id']} answer.value must be in options"
             )

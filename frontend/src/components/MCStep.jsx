@@ -37,6 +37,28 @@ function normalizeIntegralText(value) {
 }
 
 function renderOptionContent(option) {
+  if (option && typeof option === "object") {
+    const text = option.text || "";
+    const math = option.math || "";
+    const safeText = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    const parts = [];
+    if (safeText) {
+      parts.push(`<span>${safeText}</span>`);
+    }
+    if (math) {
+      parts.push(
+        katex.renderToString(math, {
+          throwOnError: false,
+          strict: false,
+          output: "html"
+        })
+      );
+    }
+    return { __html: parts.join(" ") };
+  }
   const raw = String(option ?? "").trim();
   if (!raw || !MATH_TRIGGER.test(raw)) {
     return { __html: "" };
@@ -86,22 +108,36 @@ export default function MCStep({
 }) {
   return (
     <div className="step">
-      <MathPrompt prompt={step.prompt} />
+      <MathPrompt
+        prompt={step.prompt}
+        promptText={step.prompt_text || step.promptText}
+        promptMath={step.prompt_math || step.promptMath}
+      />
       <div className="step-options">
-        {step.options.map((option) => (
+        {step.options.map((option) => {
+          const optionValue =
+            option && typeof option === "object" ? option.value : option;
+          const optionKey =
+            option && typeof option === "object" ? option.value : option;
+          return (
           <button
-            key={option}
+            key={optionKey}
             className="option-button"
-            onClick={() => onAnswer(option)}
+            onClick={() => onAnswer(optionValue)}
             disabled={disabled || hideSubmit}
           >
-            {MATH_TRIGGER.test(String(option ?? "")) ? (
+            {option && typeof option === "object"
+              ? (
+                <span dangerouslySetInnerHTML={renderOptionContent(option)} />
+              )
+              : MATH_TRIGGER.test(String(option ?? "")) ? (
               <span dangerouslySetInnerHTML={renderOptionContent(option)} />
             ) : (
-              option
+              optionValue
             )}
           </button>
-        ))}
+          );
+        })}
       </div>
       <div className="step-actions">
         {!hideSkip && (

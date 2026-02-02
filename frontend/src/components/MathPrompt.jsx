@@ -165,10 +165,16 @@ function normalizeMathText(rawMath) {
   return cleaned;
 }
 
-export default function MathPrompt({ prompt }) {
-  const { text, math, tail, prefix } = useMemo(() => splitPrompt(prompt), [prompt]);
+export default function MathPrompt({ prompt, promptText, promptMath }) {
+  const textOnly = promptText ?? "";
+  const mathOnly = promptMath ?? "";
+  const useStructured = Boolean(promptText || promptMath);
+  const { text, math, tail, prefix } = useMemo(
+    () => (useStructured ? { text: textOnly, math: mathOnly, tail: "", prefix: "" } : splitPrompt(prompt)),
+    [useStructured, textOnly, mathOnly, prompt]
+  );
   const mathMarkup = useMemo(() => {
-    const cleaned = normalizeMathText(math);
+    const cleaned = useStructured ? math : normalizeMathText(math);
     if (!cleaned) {
       return "";
     }

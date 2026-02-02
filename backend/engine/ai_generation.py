@@ -55,9 +55,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '     "<step_id>": {\n'
         '        "id": "<step_id>",\n'
         '        "type": "MC" | "SA",\n'
-        '        "prompt": "<string>",\n'
-        '        "options": ["real answer text", "real answer text"]  // MC only,\n'
-        '        "answer": { "kind": "exact", "value": "<option>" }  // MC\n'
+        '        "prompt_text": "<string>",\n'
+        '        "prompt_math": "<latex or empty>",\n'
+        '        "options": [ { "value": "<string>", "text": "<string>", "math": "<latex or empty>" } ]  // MC only,\n'
+        '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
         '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
         '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
         '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
@@ -73,7 +74,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Use 6-10 steps total.\n"
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
-        "- MC options must be full, meaningful answer strings (no single-letter placeholders like A/B/C/D).\n"
+        "- MC options must be full, meaningful answers (no single-letter placeholders like A/B/C/D).\n"
+        "- Use prompt_text for English instructions and prompt_math for the math expression.\n"
+        "- If a step has no math, leave prompt_math as an empty string.\n"
+        "- For MC options, use text for English and math for LaTeX. Keep value as a stable string.\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"

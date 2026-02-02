@@ -164,7 +164,9 @@ def _step_payload(step: dict) -> dict:
     payload = {
         "id": step["id"],
         "type": step["type"],
-        "prompt": step["prompt"],
+        "prompt": step.get("prompt"),
+        "prompt_text": step.get("prompt_text") or step.get("promptText"),
+        "prompt_math": step.get("prompt_math") or step.get("promptMath"),
         "options": step.get("options", []),
         "solution": step.get("solution"),
     }
@@ -214,8 +216,9 @@ def analyze_attempts(
     correction_help = []
     for attempt in attempts:
         try:
+            question = _prompt_string(step)
             ai_feedback = generate_attempt_feedback(
-                question=step.get("prompt", ""),
+                question=question,
                 correct_answer=correct_answer or "",
                 attempt=attempt["response"],
                 attempt_number=attempt["attempt_number"],
@@ -250,6 +253,17 @@ def _correct_answer(step: dict) -> str:
         return step["answer"]["value"]
     values = step["answer"]["values"]
     return values[0] if values else ""
+
+
+def _prompt_string(step: dict) -> str:
+    prompt = step.get("prompt")
+    if prompt:
+        return prompt
+    text = step.get("prompt_text") or step.get("promptText") or ""
+    math = step.get("prompt_math") or step.get("promptMath") or ""
+    if text and math:
+        return f"{text} {math}"
+    return text or math
 
 
 def _get_session(db_path: str, session_id: str) -> dict | None:
