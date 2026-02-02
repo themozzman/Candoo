@@ -279,6 +279,10 @@ def is_admin_user(user: dict) -> bool:
     )
 
 
+def _with_admin_flag(users: list[dict]) -> list[dict]:
+    return [{**user, "is_admin": is_admin_user(user)} for user in users]
+
+
 def _require_admin_or_flow_token(token: str, user: dict) -> None:
     if token and ADMIN_FLOW_TOKEN and token == ADMIN_FLOW_TOKEN:
         return
@@ -444,7 +448,11 @@ def auth_login(payload: LoginRequest, response: Response, request: Request) -> d
     session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
     token = sign_session(session["session_id"], AUTH_SECRET)
     _set_session_cookie(response, token)
-    return {"username": user["username"], "email": user.get("email")}
+    return {
+        "username": user["username"],
+        "email": user.get("email"),
+        "is_admin": is_admin_user(user),
+    }
 
 
 @app.post("/auth/logout")
@@ -459,7 +467,11 @@ def auth_logout(response: Response, request: Request) -> dict:
 
 @app.get("/auth/me")
 def auth_me(user: dict = Depends(get_current_user)) -> dict:
-    return {"username": user["username"], "email": user.get("email")}
+    return {
+        "username": user["username"],
+        "email": user.get("email"),
+        "is_admin": is_admin_user(user),
+    }
 
 
 @app.post("/auth/forgot")
@@ -658,7 +670,7 @@ def admin_list_users(
     payload: AdminUsersRequest, user: dict = Depends(get_current_user)
 ) -> dict:
     _require_admin_or_flow_token(payload.token, user)
-    return {"users": list_users(DB_PATH)}
+    return {"users": _with_admin_flag(list_users(DB_PATH))}
 
 
 @app.post("/admin/users/delete")
@@ -684,7 +696,7 @@ def admin_course_students(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     students = list_course_students(DB_PATH, payload.course_id)
-    return {"course": course, "students": students}
+    return {"course": course, "students": _with_admin_flag(students)}
 
 
 @app.post("/admin/courses/students/set")
@@ -697,4 +709,4 @@ def admin_course_students_set(
         raise HTTPException(status_code=404, detail="Course not found")
     set_course_students(DB_PATH, payload.course_id, payload.student_ids)
     students = list_course_students(DB_PATH, payload.course_id)
-    return {"course": course, "students": students}
+    return {"course": course, "students": _with_admin_flag(students)}

@@ -89,13 +89,7 @@ export default function App() {
   const [returnView, setReturnView] = useState("catalog");
   const advanceTimerRef = useRef(null);
 
-  const adminEmails = ["andrestoussieh3@gmail.com"];
-  const adminUsernames = ["andrestoussieh"];
-  const isAdmin = Boolean(
-    (authUser?.email && adminEmails.includes(authUser.email.toLowerCase())) ||
-      (authUser?.username &&
-        adminUsernames.includes(authUser.username.toLowerCase()))
-  );
+  const isAdmin = Boolean(authUser?.is_admin);
 
   const loadCourses = (preserveSelection = true) => {
     fetchCourses()
@@ -1189,9 +1183,9 @@ export default function App() {
                                 </div>
                               </div>
                               <div className="student-actions">
-                                {adminEmails.includes(
-                                  (student.email || "").toLowerCase()
-                                ) && <span className="student-badge">Admin</span>}
+                                {student.is_admin && (
+                                  <span className="student-badge">Admin</span>
+                                )}
                                 <button
                                   className="student-delete"
                                   type="button"
@@ -1227,9 +1221,9 @@ export default function App() {
                               {student.email || "no email"}
                             </div>
                           </div>
-                          {adminEmails.includes(
-                            (student.email || "").toLowerCase()
-                          ) && <span className="student-badge">Admin</span>}
+                          {student.is_admin && (
+                            <span className="student-badge">Admin</span>
+                          )}
                         </div>
                       ))
                     )}
