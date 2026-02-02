@@ -4,9 +4,45 @@ import katex from "katex";
 const MATH_TRIGGER =
   /[=\^]|\\|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π|\b[a-zA-Z]\s*\(/i;
 
+const TAIL_KEYWORDS =
+  /\s+(to|and|then|so|where|with|for|if|when|find|given|assuming)\b/i;
+
+function splitMathTail(rawMath) {
+  if (!rawMath) {
+    return { math: "", tail: "" };
+  }
+  const candidates = [];
+  const keywordMatch = rawMath.match(TAIL_KEYWORDS);
+  if (keywordMatch) {
+    candidates.push({
+      index: keywordMatch.index ?? -1,
+      tailStart: keywordMatch.index ?? -1
+    });
+  }
+  const punctuationMatch = rawMath.match(/[,;]\s+/);
+  if (punctuationMatch) {
+    candidates.push({
+      index: punctuationMatch.index ?? -1,
+      tailStart: (punctuationMatch.index ?? 0) + 1
+    });
+  }
+  const validCandidates = candidates.filter((candidate) => candidate.index > 0);
+  if (validCandidates.length === 0) {
+    return { math: rawMath, tail: "" };
+  }
+  validCandidates.sort((a, b) => a.index - b.index);
+  const { index, tailStart } = validCandidates[0];
+  const math = rawMath.slice(0, index).trim();
+  const tail = rawMath.slice(tailStart).trim();
+  if (!math || !tail || MATH_TRIGGER.test(tail)) {
+    return { math: rawMath, tail: "" };
+  }
+  return { math, tail };
+}
+
 function splitPrompt(prompt) {
   if (!prompt) {
-    return { text: "", math: "" };
+    return { text: "", math: "", tail: "" };
   }
   const usingMatch = prompt.match(/\s+using\s+/i);
   if (usingMatch) {
@@ -17,13 +53,15 @@ function splitPrompt(prompt) {
       const mathStart = beforeUsing.search(MATH_TRIGGER);
       if (mathStart >= 0) {
         const instruction = beforeUsing.slice(0, mathStart).trim().replace(/[:\s]+$/, "");
-        const math = beforeUsing.slice(mathStart).trim();
+        const mathCandidate = beforeUsing.slice(mathStart).trim();
+        const { math, tail } = splitMathTail(mathCandidate);
         if (math) {
           return {
             text: instruction
               ? `${instruction} using ${usingClause}`
               : `Using ${usingClause}`,
-            math
+            math,
+            tail
           };
         }
       }
@@ -33,22 +71,25 @@ function splitPrompt(prompt) {
     const [text, ...rest] = prompt.split(":");
     const remainder = rest.join(":").trim();
     if (remainder && MATH_TRIGGER.test(remainder)) {
-      return { text: `${text}:`, math: remainder };
+      const { math, tail } = splitMathTail(remainder);
+      return { text: `${text}:`, math, tail };
     }
   }
   if (!MATH_TRIGGER.test(prompt)) {
-    return { text: prompt, math: "" };
+    return { text: prompt, math: "", tail: "" };
   }
   const mathStart = prompt.search(MATH_TRIGGER);
   if (mathStart === 0) {
-    return { text: "", math: prompt };
+    const { math, tail } = splitMathTail(prompt);
+    return { text: "", math, tail };
   }
   if (mathStart < 0) {
-    return { text: prompt, math: "" };
+    return { text: prompt, math: "", tail: "" };
   }
   const text = prompt.slice(0, mathStart).trim();
-  const math = prompt.slice(mathStart).trim();
-  return { text: text ? `${text}` : "", math };
+  const mathCandidate = prompt.slice(mathStart).trim();
+  const { math, tail } = splitMathTail(mathCandidate);
+  return { text: text ? `${text}` : "", math, tail };
 }
 
 function normalizeMathText(rawMath) {
@@ -62,7 +103,7 @@ function normalizeMathText(rawMath) {
 }
 
 export default function MathPrompt({ prompt }) {
-  const { text, math } = useMemo(() => splitPrompt(prompt), [prompt]);
+  const { text, math, tail } = useMemo(() => splitPrompt(prompt), [prompt]);
   const mathMarkup = useMemo(() => {
     const cleaned = normalizeMathText(math);
     if (!cleaned) {
@@ -84,6 +125,7 @@ export default function MathPrompt({ prompt }) {
           dangerouslySetInnerHTML={{ __html: mathMarkup }}
         />
       )}
+      {tail && <div className="step-prompt-text">{tail}</div>}
       {!text && !mathMarkup && prompt}
     </div>
   );
