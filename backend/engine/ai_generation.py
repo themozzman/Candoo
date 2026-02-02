@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import re
 from datetime import datetime, timezone
 
@@ -127,6 +128,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     flow["id"] = flow_id
     _repair_math_formatting(flow, is_math_course)
     _validate_math_formatting(flow, is_math_course)
+    _shuffle_mc_options(flow)
     return flow
 
 
@@ -321,3 +323,18 @@ def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
                 raise AIFlowError("MC option text contains math but math is empty")
             if math and _contains_english_words(math):
                 raise AIFlowError("MC option math contains English words")
+
+
+def _shuffle_mc_options(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict):
+        return
+    for step in steps.values():
+        if not isinstance(step, dict):
+            continue
+        if step.get("type") != "MC":
+            continue
+        options = step.get("options")
+        if not isinstance(options, list) or len(options) < 2:
+            continue
+        random.shuffle(options)
