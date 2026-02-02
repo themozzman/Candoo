@@ -125,6 +125,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
+    _repair_math_formatting(flow, is_math_course)
     _validate_math_formatting(flow, is_math_course)
     return flow
 
@@ -221,6 +222,10 @@ _PROMPT_EXPRESSION_RE = re.compile(
     r"\([0-9a-zA-Z\s*/^+-]+\)",
     flags=re.IGNORECASE,
 )
+_MATH_START_RE = re.compile(
+    r"(\\int|∫|∞|π|[a-zA-Z]\s*\^|[a-zA-Z]\s*\(|\d+\s*/\s*[a-zA-Z])",
+    flags=re.IGNORECASE,
+)
 
 
 def _contains_math_tokens(value: str) -> bool:
@@ -229,6 +234,60 @@ def _contains_math_tokens(value: str) -> bool:
 
 def _contains_english_words(value: str) -> bool:
     return bool(value and _ENGLISH_IN_MATH_RE.search(value))
+
+
+def _split_text_math(value: str) -> tuple[str, str]:
+    if not value:
+        return "", ""
+    match = _MATH_START_RE.search(value)
+    if not match:
+        return value.strip(), ""
+    idx = match.start()
+    if idx <= 0:
+        return "", value.strip()
+    text = value[:idx].strip()
+    math = value[idx:].strip()
+    return text, math
+
+
+def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
+    if not is_math_course:
+        return
+    steps = flow.get("steps")
+    if not isinstance(steps, dict):
+        return
+    for step in steps.values():
+        if not isinstance(step, dict):
+            continue
+        prompt_text = (step.get("prompt_text") or step.get("promptText") or "").strip()
+        prompt_math = (step.get("prompt_math") or step.get("promptMath") or "").strip()
+        if not prompt_math and _contains_math_tokens(prompt_text):
+            text, math = _split_text_math(prompt_text)
+            if math:
+                step["prompt_text"] = text
+                step["prompt_math"] = math
+                prompt_text = text
+                prompt_math = math
+        if prompt_math and _PROMPT_EXPRESSION_RE.search(prompt_text):
+            text, _ = _split_text_math(prompt_text)
+            step["prompt_text"] = text
+        if step.get("type") != "MC":
+            continue
+        options = step.get("options") or []
+        for option in options:
+            if not isinstance(option, dict):
+                continue
+            text = (option.get("text") or "").strip()
+            math = (option.get("math") or "").strip()
+            if math or not _contains_math_tokens(text):
+                continue
+            text_part, math_part = _split_text_math(text)
+            if math_part:
+                option["text"] = text_part
+                option["math"] = math_part
+            else:
+                option["text"] = ""
+                option["math"] = text
 
 
 def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
