@@ -84,6 +84,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Use prompt_text for the instruction only (no math tokens, no equations).\n"
         "- Use prompt_math for the math expression only (LaTeX), or empty if no math.\n"
         "- The UI will show prompt_text first and prompt_math underneath.\n"
+        "- Do not repeat the math expression in prompt_text when prompt_math is present.\n"
+        "- For SA: prompt_text should be the action (e.g., \"Evaluate the convergence of\"), and the full expression goes in prompt_math.\n"
         "- For MC options, choose exactly one of these formats:\n"
         "  1) All math options: text empty, math contains the full option in LaTeX.\n"
         "  2) Mixed English + math: text contains the English clause, math contains the LaTeX expression.\n"
@@ -96,6 +98,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "Examples (GOOD):\n"
         '  prompt_text: "Evaluate the integral using limits."\n'
         '  prompt_math: "\\\\int_{1}^{\\\\infty} \\\\frac{1}{x^2} \\\\; dx"\n'
+        '  prompt_text: "Evaluate the convergence of"\n'
+        '  prompt_math: "\\\\int_{1}^{\\\\infty} \\\\frac{1}{x} \\\\; dx"\n'
         '  options: [\n'
         '    {"value":"opt1","text":"","math":"2x\\\\sin(x)+x^2\\\\cos(x)"},\n'
         '    {"value":"opt2","text":"Converges because","math":"\\\\int_1^\\\\infty \\\\frac{1}{x^2} dx"},\n'
@@ -104,6 +108,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "Example (BAD):\n"
         '  prompt_text: "Evaluate \\\\int_1^\\\\infty 1/x^2 dx"\n'
         '  prompt_math: ""\n'
+        '  prompt_text: "The integral from 1 to infinity of (1/x^2) dx"\n'
+        '  prompt_math: "\\\\int_{1}^{\\\\infty} \\\\frac{1}{x^2} dx"\n'
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"
@@ -208,6 +214,13 @@ _ENGLISH_IN_MATH_RE = re.compile(
     r"\b(from|to|the|using|integral|evaluate|which|statement|converges|diverges|because|limit|approx)\b",
     flags=re.IGNORECASE,
 )
+_PROMPT_EXPRESSION_RE = re.compile(
+    r"\b(from\s+\d+|to\s+\d+|infinity|∞)\b|"
+    r"\b(d[xyt]|d\s*x|d\s*y|d\s*t)\b|"
+    r"\d+\s*/\s*[a-zA-Z]|"
+    r"\([0-9a-zA-Z\s*/^+-]+\)",
+    flags=re.IGNORECASE,
+)
 
 
 def _contains_math_tokens(value: str) -> bool:
@@ -231,6 +244,8 @@ def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
         prompt_math = (step.get("prompt_math") or step.get("promptMath") or "").strip()
         if _contains_math_tokens(prompt_text) and not prompt_math:
             raise AIFlowError("prompt_text contains math but prompt_math is empty")
+        if prompt_math and _PROMPT_EXPRESSION_RE.search(prompt_text):
+            raise AIFlowError("prompt_text repeats the math expression; keep it in prompt_math")
         if prompt_math and _contains_english_words(prompt_math):
             raise AIFlowError("prompt_math contains English words")
         if step.get("type") != "MC":
