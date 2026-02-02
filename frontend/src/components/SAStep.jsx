@@ -110,11 +110,7 @@ export default function SAStep({
 
   return (
     <form className="step" onSubmit={handleSubmit}>
-      <MathPrompt
-        prompt={step.prompt}
-        promptText={step.prompt_text || step.promptText}
-        promptMath={step.prompt_math || step.promptMath}
-      />
+      <MathPrompt prompt={step.prompt} promptText={step.prompt_text} promptMath={step.prompt_math} />
       {isSpotError && (
         <div className="step-hint">
           Enter the fully corrected answer, not just the error.

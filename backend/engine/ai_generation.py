@@ -1,6 +1,5 @@
 import json
 import os
-import re
 from datetime import datetime, timezone
 
 from openai import OpenAI
@@ -56,10 +55,9 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '     "<step_id>": {\n'
         '        "id": "<step_id>",\n'
         '        "type": "MC" | "SA",\n'
-        '        "prompt_text": "<string>",\n'
-        '        "prompt_math": "<latex or empty>",\n'
-        '        "options": [ { "value": "<string>", "text": "<string>", "math": "<latex or empty>" } ]  // MC only,\n'
-        '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
+        '        "prompt": "<string>",\n'
+        '        "options": ["<string>", "..."]  // MC only,\n'
+        '        "answer": { "kind": "exact", "value": "<option>" }  // MC\n'
         '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
         '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
         '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
@@ -76,11 +74,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
         "- MC options must be full, meaningful answers (no single-letter placeholders like A/B/C/D).\n"
-        "- Use prompt_text for English-only instructions with NO math tokens.\n"
-        "- Put all math notation in prompt_math as LaTeX (e.g. \\int_0^\\infty \\frac{1}{x} dx).\n"
-        "- If a step has no math, leave prompt_math as an empty string.\n"
-        "- For MC options, keep text for English-only content and math for LaTeX; do not mix.\n"
-        "- If a step or option includes math, its math field MUST be populated.\n"
+        "- Put the entire question in prompt exactly as you want it displayed.\n"
+        "- If the prompt contains math, include it inline in the prompt string.\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"
@@ -95,7 +90,6 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
-    flow = _normalize_flow_math(flow)
     return flow
 
 
@@ -151,142 +145,6 @@ def _json_response(client: OpenAI, prompt: str) -> dict:
         raise AIFlowError(f"Failed to parse AI JSON: {exc}") from exc
 
 
-def _normalize_flow_math(flow: dict) -> dict:
-    steps = flow.get("steps")
-    if not isinstance(steps, dict):
-        return flow
-
-    for step in steps.values():
-        if not isinstance(step, dict):
-            continue
-        _normalize_step_prompt(step)
-        _normalize_step_options(step)
-        _assert_step_math_clean(step)
-
-    return flow
-
-
-def _normalize_step_prompt(step: dict) -> None:
-    prompt_text = step.get("prompt_text") or step.get("promptText") or ""
-    prompt_math = step.get("prompt_math") or step.get("promptMath") or ""
-    if not prompt_text and isinstance(step.get("prompt"), str):
-        prompt_text = step.get("prompt") or ""
-    if not prompt_math and _contains_math(prompt_text):
-        text, math = _split_prompt_text_math(prompt_text)
-        text, math = _repair_prompt_split(text, math)
-        prompt_text = text
-        prompt_math = math
-    step["prompt_text"] = prompt_text.strip()
-    step["prompt_math"] = prompt_math.strip()
-    if "prompt" in step and step["prompt"] is not None:
-        step["prompt"] = None
-
-
-def _normalize_step_options(step: dict) -> None:
-    if step.get("type") != "MC":
-        return
-    options = step.get("options")
-    if not isinstance(options, list):
-        return
-    normalized = []
-    for idx, option in enumerate(options):
-        if isinstance(option, dict):
-            text = (option.get("text") or "").strip()
-            math = (option.get("math") or "").strip()
-            value = option.get("value") or f"option{idx + 1}"
-            if not math and _contains_math(text):
-                text, math = _split_option_text_math(text)
-            normalized.append({"value": value, "text": text, "math": math})
-        else:
-            raw = str(option).strip()
-            text, math = _split_option_text_math(raw)
-            normalized.append({"value": f"option{idx + 1}", "text": text, "math": math})
-    step["options"] = normalized
-
-    answer = step.get("answer")
-    if isinstance(answer, dict) and answer.get("kind") == "exact":
-        raw_value = answer.get("value")
-        if raw_value:
-            match = next(
-                (opt for opt in normalized if opt["value"] == raw_value),
-                None,
-            )
-            if match is None:
-                for opt in normalized:
-                    if opt["text"] == raw_value or opt["math"] == raw_value:
-                        answer["value"] = opt["value"]
-                        break
-
-
-def _contains_math(value: str) -> bool:
-    return bool(
-        re.search(
-            r"[=^]|\\|∫|∞|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π",
-            value,
-            flags=re.IGNORECASE,
-        )
-    )
-
-
-def _split_prompt_text_math(value: str) -> tuple[str, str]:
-    match = re.search(
-        r"(∫\s*from\s*.+|\bint\b|\\int|[a-zA-Z]\s*\^|[a-zA-Z]\s*\(|∞|π)",
-        value,
-        flags=re.IGNORECASE,
-    )
-    if not match:
-        return value.strip(), ""
-    idx = match.start()
-    if idx > 0 and value[idx - 1].isalnum():
-        return value.strip(), ""
-    text = value[:idx].strip()
-    math = value[idx:].strip()
-    return text, math
-
-
-def _repair_prompt_split(text: str, math: str) -> tuple[str, str]:
-    if not text or not math:
-        return text, math
-    last_word = re.search(r"([A-Za-z]+)$", text)
-    first_word = re.match(r"^([A-Za-z]+)", math)
-    if not last_word or not first_word:
-        return text, math
-    if (last_word.group(1) + first_word.group(1)).lower() in {"sin", "cos", "tan", "sec", "csc", "cot"}:
-        merged = last_word.group(1) + first_word.group(1)
-        text = text[: -len(last_word.group(1))].rstrip()
-        math = math[len(first_word.group(1)) :].lstrip()
-        if math and not math.startswith("("):
-            math = f"{merged} {math}"
-        else:
-            math = f"{merged}{math}"
-        return text, math
-    return text, math
-
-
-def _split_option_text_math(value: str) -> tuple[str, str]:
-    if not _contains_math(value):
-        return value, ""
-    return "", value
-
-
-def _assert_step_math_clean(step: dict) -> None:
-    prompt_text = step.get("prompt_text") or ""
-    if _contains_math(prompt_text):
-        raise AIFlowError(
-            "Generated prompt_text contains math; regenerate flow with structured math fields."
-        )
-    if step.get("type") != "MC":
-        return
-    options = step.get("options") or []
-    for option in options:
-        if not isinstance(option, dict):
-            continue
-        text = option.get("text") or ""
-        math = option.get("math") or ""
-        if _contains_math(text) and not math:
-            raise AIFlowError(
-                "Generated MC option text contains math; regenerate flow with structured math fields."
-            )
 
 
 def now_label() -> str:

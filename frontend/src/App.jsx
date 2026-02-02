@@ -27,7 +27,6 @@ import MCStep from "./components/MCStep.jsx";
 import SAStep from "./components/SAStep.jsx";
 import Feedback from "./components/Feedback.jsx";
 import MathPrompt from "./components/MathPrompt.jsx";
-import katex from "katex";
 
 export default function App() {
   const [courses, setCourses] = useState([]);
@@ -1450,8 +1449,8 @@ export default function App() {
                               </div>
                               <MathPrompt
                                 prompt={step.prompt}
-                                promptText={step.prompt_text || step.promptText}
-                                promptMath={step.prompt_math || step.promptMath}
+                                promptText={step.prompt_text}
+                                promptMath={step.prompt_math}
                               />
                               {step.type === "MC" ? (
                                 <div className="preview-options">
@@ -1460,33 +1459,16 @@ export default function App() {
                                       option && typeof option === "object"
                                         ? option.value
                                         : option;
-                                    const optionText =
+                                    const optionLabel =
                                       option && typeof option === "object"
-                                        ? option.text
-                                        : "";
-                                    const optionMath =
-                                      option && typeof option === "object"
-                                        ? option.math
-                                        : "";
+                                        ? option.text || option.math || option.value || ""
+                                        : optionValue;
                                     return (
                                       <div
                                         key={optionValue || optIndex}
                                         className="preview-option"
                                       >
-                                        {optionText && <span>{optionText}</span>}
-                                        {optionMath && (
-                                          <span
-                                            className="preview-option-math"
-                                            dangerouslySetInnerHTML={{
-                                              __html: katex.renderToString(optionMath, {
-                                                throwOnError: false,
-                                                strict: false,
-                                                output: "html"
-                                              })
-                                            }}
-                                          />
-                                        )}
-                                        {!optionText && !optionMath && optionValue}
+                                        {optionLabel}
                                       </div>
                                     );
                                   })}
@@ -1692,34 +1674,21 @@ export default function App() {
                     </div>
                     <MathPrompt
                       prompt={step.prompt}
-                      promptText={step.prompt_text || step.promptText}
-                      promptMath={step.prompt_math || step.promptMath}
+                      promptText={step.prompt_text}
+                      promptMath={step.prompt_math}
                     />
                     {step.type === "MC" ? (
                       <div className="preview-options">
                         {step.options.map((option) => {
                           const optionValue =
                             option && typeof option === "object" ? option.value : option;
-                          const optionText =
-                            option && typeof option === "object" ? option.text : "";
-                          const optionMath =
-                            option && typeof option === "object" ? option.math : "";
+                          const optionLabel =
+                            option && typeof option === "object"
+                              ? option.text || option.math || option.value || ""
+                              : optionValue;
                           return (
                             <div key={optionValue} className="preview-option">
-                              {optionText && <span>{optionText}</span>}
-                              {optionMath && (
-                                <span
-                                  className="preview-option-math"
-                                  dangerouslySetInnerHTML={{
-                                    __html: katex.renderToString(optionMath, {
-                                      throwOnError: false,
-                                      strict: false,
-                                      output: "html"
-                                    })
-                                  }}
-                                />
-                              )}
-                              {!optionText && !optionMath && optionValue}
+                              {optionLabel}
                             </div>
                           );
                         })}
@@ -1833,8 +1802,8 @@ export default function App() {
                           </div>
                           <MathPrompt
                             prompt={step.prompt}
-                            promptText={step.prompt_text || step.promptText}
-                            promptMath={step.prompt_math || step.promptMath}
+                            promptText={step.prompt_text}
+                            promptMath={step.prompt_math}
                           />
                           <div className="report-question-stats">
                             <div>
