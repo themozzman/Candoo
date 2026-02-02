@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from .db import connect_db, set_row_factory
 from uuid import uuid4
 
@@ -29,9 +30,9 @@ def start_session(flow: dict, student_id: str, db_path: str) -> tuple[str, dict]
             INSERT INTO sessions (
                 session_id, flow_id, student_id, current_step_id, created_at, attempts
             )
-            VALUES (?, ?, ?, ?, datetime('now'), 0)
+            VALUES (?, ?, ?, ?, ?, 0)
             """,
-            (session_id, flow["id"], student_id, start_step_id),
+            (session_id, flow["id"], student_id, start_step_id, _now_iso()),
         )
         conn.commit()
     finally:
@@ -283,3 +284,7 @@ def _count_attempts(db_path: str, session_id: str, step_id: str) -> int:
         return int(value)
     finally:
         conn.close()
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
