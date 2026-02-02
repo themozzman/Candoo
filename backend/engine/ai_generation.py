@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from datetime import datetime, timezone
 
 from openai import OpenAI
@@ -75,9 +76,11 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
         "- MC options must be full, meaningful answers (no single-letter placeholders like A/B/C/D).\n"
-        "- Use prompt_text for English instructions and prompt_math for the math expression.\n"
+        "- Use prompt_text for English-only instructions with NO math tokens.\n"
+        "- Put all math notation in prompt_math as LaTeX (e.g. \\int_0^\\infty \\frac{1}{x} dx).\n"
         "- If a step has no math, leave prompt_math as an empty string.\n"
-        "- For MC options, use text for English and math for LaTeX. Keep value as a stable string.\n"
+        "- For MC options, keep text for English-only content and math for LaTeX; do not mix.\n"
+        "- If a step or option includes math, its math field MUST be populated.\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"
@@ -92,6 +95,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
+    flow = _normalize_flow_math(flow)
     return flow
 
 
@@ -145,6 +149,101 @@ def _json_response(client: OpenAI, prompt: str) -> dict:
         return json.loads(content)
     except json.JSONDecodeError as exc:
         raise AIFlowError(f"Failed to parse AI JSON: {exc}") from exc
+
+
+def _normalize_flow_math(flow: dict) -> dict:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict):
+        return flow
+
+    for step in steps.values():
+        if not isinstance(step, dict):
+            continue
+        _normalize_step_prompt(step)
+        _normalize_step_options(step)
+
+    return flow
+
+
+def _normalize_step_prompt(step: dict) -> None:
+    prompt_text = step.get("prompt_text") or step.get("promptText") or ""
+    prompt_math = step.get("prompt_math") or step.get("promptMath") or ""
+    if not prompt_text and isinstance(step.get("prompt"), str):
+        prompt_text = step.get("prompt") or ""
+    if not prompt_math and _contains_math(prompt_text):
+        text, math = _split_prompt_text_math(prompt_text)
+        prompt_text = text
+        prompt_math = math
+    step["prompt_text"] = prompt_text.strip()
+    step["prompt_math"] = prompt_math.strip()
+    if "prompt" in step and step["prompt"] is not None:
+        step["prompt"] = None
+
+
+def _normalize_step_options(step: dict) -> None:
+    if step.get("type") != "MC":
+        return
+    options = step.get("options")
+    if not isinstance(options, list):
+        return
+    normalized = []
+    for idx, option in enumerate(options):
+        if isinstance(option, dict):
+            text = (option.get("text") or "").strip()
+            math = (option.get("math") or "").strip()
+            value = option.get("value") or f"option{idx + 1}"
+            if not math and _contains_math(text):
+                text, math = _split_option_text_math(text)
+            normalized.append({"value": value, "text": text, "math": math})
+        else:
+            raw = str(option).strip()
+            text, math = _split_option_text_math(raw)
+            normalized.append({"value": f"option{idx + 1}", "text": text, "math": math})
+    step["options"] = normalized
+
+    answer = step.get("answer")
+    if isinstance(answer, dict) and answer.get("kind") == "exact":
+        raw_value = answer.get("value")
+        if raw_value:
+            match = next(
+                (opt for opt in normalized if opt["value"] == raw_value),
+                None,
+            )
+            if match is None:
+                for opt in normalized:
+                    if opt["text"] == raw_value or opt["math"] == raw_value:
+                        answer["value"] = opt["value"]
+                        break
+
+
+def _contains_math(value: str) -> bool:
+    return bool(
+        re.search(
+            r"[=^]|\\|∫|∞|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π",
+            value,
+            flags=re.IGNORECASE,
+        )
+    )
+
+
+def _split_prompt_text_math(value: str) -> tuple[str, str]:
+    match = re.search(
+        r"(∫\s*from\s*.+|\bint\b|\\int|[a-zA-Z]\s*\^|[a-zA-Z]\s*\(|∞|π)",
+        value,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return value.strip(), ""
+    idx = match.start()
+    text = value[:idx].strip()
+    math = value[idx:].strip()
+    return text, math
+
+
+def _split_option_text_math(value: str) -> tuple[str, str]:
+    if not _contains_math(value):
+        return value, ""
+    return "", value
 
 
 def now_label() -> str:
