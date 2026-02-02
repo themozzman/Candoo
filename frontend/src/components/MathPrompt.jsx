@@ -68,7 +68,11 @@ function stripLeadingParen(rawMath) {
   }
   const trimmed = rawMath.trimStart();
   if (trimmed.startsWith("(")) {
-    return { math: trimmed.slice(1).trimStart(), leadingText: "(" };
+    let math = trimmed.slice(1).trimStart();
+    if (math.endsWith(")")) {
+      math = math.slice(0, -1).trimEnd();
+    }
+    return { math, leadingText: "(" };
   }
   return { math: rawMath, leadingText: "" };
 }

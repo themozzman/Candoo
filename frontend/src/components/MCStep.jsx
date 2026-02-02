@@ -20,6 +20,15 @@ function renderOptionContent(option) {
   if (!raw || !MATH_TRIGGER.test(raw)) {
     return { __html: "" };
   }
+  if (raw.includes("\\") || raw.includes("{") || raw.includes("}")) {
+    return {
+      __html: katex.renderToString(raw, {
+        throwOnError: false,
+        strict: false,
+        output: "html"
+      })
+    };
+  }
   const latex = raw
     .split(/\s+/)
     .map((token) =>
