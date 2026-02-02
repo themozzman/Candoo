@@ -225,7 +225,7 @@ def startup() -> None:
     Path(REPORTS_PATH).mkdir(parents=True, exist_ok=True)
     init_db(DB_PATH)
     try:
-        flows = load_flows(FLOWS_DIR)
+        flows = {}
         for record in list_approved_flows(DB_PATH):
             flow = record["flow"]
             validate_flow(flow, source=f"db:{record['id']}")
@@ -261,7 +261,7 @@ def _rate_limit(request: Request, action: str) -> None:
 
 
 def _reload_flows() -> None:
-    flows = load_flows(FLOWS_DIR)
+    flows = {}
     for record in list_approved_flows(DB_PATH):
         flow = record["flow"]
         try:
