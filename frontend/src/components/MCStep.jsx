@@ -3,7 +3,7 @@ import katex from "katex";
 import MathPrompt from "./MathPrompt.jsx";
 
 const MATH_TRIGGER =
-  /[=\^*]|\\|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π|\b[a-zA-Z]\s*\(/i;
+  /[=\^*]|\\|∫|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root)\b|\bpi\b|π|\b[a-zA-Z]\s*\(/i;
 const MATH_TOKEN =
   /[0-9^*=\\()[\]{}]|\b(sin|cos|tan|sec|csc|cot|log|ln|sqrt|root|pi)\b|π/i;
 
@@ -15,10 +15,36 @@ function normalizeMathToken(value) {
   return value.replace(/\*/g, "\\cdot ");
 }
 
+function normalizeIntegralText(value) {
+  if (!value) {
+    return "";
+  }
+  let cleaned = value.replace(/∞/g, "\\infty");
+  cleaned = cleaned.replace(/\^\(([^)]+)\)/g, "^{$1}");
+  cleaned = cleaned.replace(
+    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*\(([^)]+)\)\s*dx/i,
+    "\\int_{$1}^{$2} $3 \\, dx"
+  );
+  cleaned = cleaned.replace(
+    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*([^?]+?)\s*dx\b/i,
+    "\\int_{$1}^{$2} $3 \\, dx"
+  );
+  return cleaned;
+}
+
 function renderOptionContent(option) {
   const raw = String(option ?? "").trim();
   if (!raw || !MATH_TRIGGER.test(raw)) {
     return { __html: "" };
+  }
+  if (/∫\s*from\s+/i.test(raw)) {
+    return {
+      __html: katex.renderToString(normalizeIntegralText(raw), {
+        throwOnError: false,
+        strict: false,
+        output: "html"
+      })
+    };
   }
   if (raw.includes("\\") || raw.includes("{") || raw.includes("}")) {
     return {
