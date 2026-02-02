@@ -62,6 +62,17 @@ function splitMathTail(rawMath) {
   return { math, tail };
 }
 
+function stripLeadingParen(rawMath) {
+  if (!rawMath) {
+    return { math: "", leadingText: "" };
+  }
+  const trimmed = rawMath.trimStart();
+  if (trimmed.startsWith("(")) {
+    return { math: trimmed.slice(1).trimStart(), leadingText: "(" };
+  }
+  return { math: rawMath, leadingText: "" };
+}
+
 function splitPrompt(prompt) {
   if (!prompt) {
     return { text: "", math: "", tail: "" };
@@ -77,14 +88,16 @@ function splitPrompt(prompt) {
       if (mathStart >= 0) {
         const instruction = beforeUsing.slice(0, mathStart).trim().replace(/[:\s]+$/, "");
         const mathCandidate = beforeUsing.slice(mathStart).trim();
-        const { math, tail } = splitMathTail(mathCandidate);
+        const { math: strippedMath, leadingText } = stripLeadingParen(mathCandidate);
+        const { math, tail } = splitMathTail(strippedMath);
         if (math) {
           return {
             text: instruction
               ? `${instruction} using ${usingClause}`
               : `Using ${usingClause}`,
             math,
-            tail
+            tail,
+            prefix: leadingText
           };
         }
       }
@@ -94,26 +107,34 @@ function splitPrompt(prompt) {
     const [text, ...rest] = prompt.split(":");
     const remainder = rest.join(":").trim();
     if (remainder && MATH_TRIGGER.test(remainder)) {
-      const { math, tail } = splitMathTail(remainder);
-      return { text: `${text}:`, math, tail };
+      const { math: strippedMath, leadingText } = stripLeadingParen(remainder);
+      const { math, tail } = splitMathTail(strippedMath);
+      return { text: `${text}:`, math, tail, prefix: leadingText };
     }
   }
   if (!MATH_TRIGGER.test(prompt)) {
-    return { text: prompt, math: "", tail: "" };
+    return { text: prompt, math: "", tail: "", prefix: "" };
   }
   let mathStart = prompt.search(MATH_TRIGGER);
   mathStart = adjustMathStart(prompt, mathStart);
   if (mathStart === 0) {
-    const { math, tail } = splitMathTail(prompt);
-    return { text: "", math, tail };
+    const { math: strippedMath, leadingText } = stripLeadingParen(prompt);
+    const { math, tail } = splitMathTail(strippedMath);
+    return { text: "", math, tail, prefix: leadingText };
   }
   if (mathStart < 0) {
-    return { text: prompt, math: "", tail: "" };
+    return { text: prompt, math: "", tail: "", prefix: "" };
   }
   const text = prompt.slice(0, mathStart).trim();
   const mathCandidate = prompt.slice(mathStart).trim();
-  const { math, tail } = splitMathTail(mathCandidate);
-  return { text: text ? `${text}` : "", math, tail };
+  const { math: strippedMath, leadingText } = stripLeadingParen(mathCandidate);
+  const { math, tail } = splitMathTail(strippedMath);
+  return {
+    text: text ? `${text}` : "",
+    math,
+    tail,
+    prefix: leadingText
+  };
 }
 
 function normalizeMathText(rawMath) {
@@ -127,7 +148,7 @@ function normalizeMathText(rawMath) {
 }
 
 export default function MathPrompt({ prompt }) {
-  const { text, math, tail } = useMemo(() => splitPrompt(prompt), [prompt]);
+  const { text, math, tail, prefix } = useMemo(() => splitPrompt(prompt), [prompt]);
   const mathMarkup = useMemo(() => {
     const cleaned = normalizeMathText(math);
     if (!cleaned) {
@@ -142,7 +163,12 @@ export default function MathPrompt({ prompt }) {
 
   return (
     <div className="step-prompt">
-      {text && <div className="step-prompt-text">{text}</div>}
+      {text && (
+        <div className="step-prompt-text">
+          {text}
+          {prefix && ` ${prefix}`}
+        </div>
+      )}
       {mathMarkup && (
         <div
           className="step-prompt-math"
