@@ -7,6 +7,20 @@ const MATH_TRIGGER =
 const TAIL_KEYWORDS =
   /\s+(to|and|then|so|where|with|for|if|when|find|given|assuming)\b/i;
 
+function adjustMathStart(raw, start) {
+  if (start <= 0 || raw[start] !== "^") {
+    return start;
+  }
+  let idx = start - 1;
+  while (idx >= 0 && /\s/.test(raw[idx])) {
+    idx -= 1;
+  }
+  while (idx >= 0 && !/\s/.test(raw[idx])) {
+    idx -= 1;
+  }
+  return idx + 1;
+}
+
 function splitMathTail(rawMath) {
   if (!rawMath) {
     return { math: "", tail: "" };
@@ -50,7 +64,8 @@ function splitPrompt(prompt) {
     const beforeUsing = prompt.slice(0, usingIdx).trim();
     const usingClause = prompt.slice(usingIdx + 7).trim();
     if (usingClause) {
-      const mathStart = beforeUsing.search(MATH_TRIGGER);
+      let mathStart = beforeUsing.search(MATH_TRIGGER);
+      mathStart = adjustMathStart(beforeUsing, mathStart);
       if (mathStart >= 0) {
         const instruction = beforeUsing.slice(0, mathStart).trim().replace(/[:\s]+$/, "");
         const mathCandidate = beforeUsing.slice(mathStart).trim();
@@ -78,7 +93,8 @@ function splitPrompt(prompt) {
   if (!MATH_TRIGGER.test(prompt)) {
     return { text: prompt, math: "", tail: "" };
   }
-  const mathStart = prompt.search(MATH_TRIGGER);
+  let mathStart = prompt.search(MATH_TRIGGER);
+  mathStart = adjustMathStart(prompt, mathStart);
   if (mathStart === 0) {
     const { math, tail } = splitMathTail(prompt);
     return { text: "", math, tail };
