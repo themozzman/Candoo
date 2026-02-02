@@ -31,7 +31,10 @@ function splitPrompt(prompt) {
   }
   if (prompt.includes(":")) {
     const [text, ...rest] = prompt.split(":");
-    return { text: `${text}:`, math: rest.join(":").trim() };
+    const remainder = rest.join(":").trim();
+    if (remainder && MATH_TRIGGER.test(remainder)) {
+      return { text: `${text}:`, math: remainder };
+    }
   }
   if (!MATH_TRIGGER.test(prompt)) {
     return { text: prompt, math: "" };
