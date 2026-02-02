@@ -19,16 +19,17 @@ function normalizeIntegralText(value) {
   if (!value) {
     return "";
   }
-  let cleaned = value.replace(/∞/g, "\\infty");
+  let cleaned = value;
   cleaned = cleaned.replace(/\^\(([^)]+)\)/g, "^{$1}");
   cleaned = cleaned.replace(
-    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*\(([^)]+)\)\s*dx\b[?.,!]?/i,
+    /∫\s*from\s*([^\s]+)\s*to\s*(∞|\\infty)\s*of\s*\(([^)]+)\)\s*dx\b[?.,!]?/i,
     "\\int_{$1}^{$2} $3 \\, dx"
   );
   cleaned = cleaned.replace(
-    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*([^?]+?)\s*dx\b[?.,!]?/i,
+    /∫\s*from\s*([^\s]+)\s*to\s*(∞|\\infty)\s*of\s*([^?]+?)\s*dx\b[?.,!]?/i,
     "\\int_{$1}^{$2} $3 \\, dx"
   );
+  cleaned = cleaned.replace(/∞/g, "\\infty");
   return cleaned;
 }
 
