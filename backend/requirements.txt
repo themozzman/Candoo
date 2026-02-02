@@ -6,3 +6,4 @@ sympy
 certifi
 pytest
 psycopg2-binary
+gunicorn
