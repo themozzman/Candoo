@@ -90,6 +90,12 @@ export default function App() {
   const [returnView, setReturnView] = useState("catalog");
   const advanceTimerRef = useRef(null);
   const flowsPollRef = useRef(null);
+  const [debugPreviewJson, setDebugPreviewJson] = useState("");
+  const [debugPreviewError, setDebugPreviewError] = useState("");
+  const [debugPreviewSteps, setDebugPreviewSteps] = useState([]);
+
+  const debugPreviewEnabled =
+    import.meta.env.DEV || import.meta.env.VITE_DEBUG_PREVIEW === "true";
 
   const isAdmin = Boolean(authUser?.is_admin);
 
@@ -627,6 +633,28 @@ export default function App() {
       loadFlows();
     } catch (err) {
       setAdminStatus(err.message);
+    }
+  };
+
+  const parseDebugPreview = () => {
+    setDebugPreviewError("");
+    if (!debugPreviewJson.trim()) {
+      setDebugPreviewSteps([]);
+      return;
+    }
+    try {
+      const data = JSON.parse(debugPreviewJson);
+      const stepsRaw = data?.steps || data?.flow?.steps || data;
+      let stepsList = [];
+      if (Array.isArray(stepsRaw)) {
+        stepsList = stepsRaw;
+      } else if (stepsRaw && typeof stepsRaw === "object") {
+        stepsList = Object.values(stepsRaw);
+      }
+      setDebugPreviewSteps(stepsList);
+    } catch (err) {
+      setDebugPreviewError(err.message);
+      setDebugPreviewSteps([]);
     }
   };
 
@@ -1388,6 +1416,91 @@ export default function App() {
                     )}
                   </div>
                 </div>
+
+                {debugPreviewEnabled && (
+                  <div className="admin-panel-card">
+                    <div className="admin-panel-header">
+                      <div className="admin-panel-title">Debug Preview</div>
+                    </div>
+                    <div className="admin-panel-body">
+                      <textarea
+                        className="admin-textarea"
+                        rows={8}
+                        value={debugPreviewJson}
+                        onChange={(event) => setDebugPreviewJson(event.target.value)}
+                        placeholder="Paste flow JSON or steps array"
+                      />
+                      <button
+                        className="button-secondary"
+                        type="button"
+                        onClick={parseDebugPreview}
+                      >
+                        Render preview
+                      </button>
+                      {debugPreviewError && (
+                        <div className="admin-status">{debugPreviewError}</div>
+                      )}
+                      {debugPreviewSteps.length > 0 && (
+                        <div className="preview-list">
+                          {debugPreviewSteps.map((step, index) => (
+                            <div key={step.id || index} className="preview-item">
+                              <div className="preview-step-title">
+                                Question {index + 1}
+                                <span className="preview-step-type">{step.type}</span>
+                              </div>
+                              <MathPrompt
+                                prompt={step.prompt}
+                                promptText={step.prompt_text || step.promptText}
+                                promptMath={step.prompt_math || step.promptMath}
+                              />
+                              {step.type === "MC" ? (
+                                <div className="preview-options">
+                                  {(step.options || []).map((option, optIndex) => {
+                                    const optionValue =
+                                      option && typeof option === "object"
+                                        ? option.value
+                                        : option;
+                                    const optionText =
+                                      option && typeof option === "object"
+                                        ? option.text
+                                        : "";
+                                    const optionMath =
+                                      option && typeof option === "object"
+                                        ? option.math
+                                        : "";
+                                    return (
+                                      <div
+                                        key={optionValue || optIndex}
+                                        className="preview-option"
+                                      >
+                                        {optionText && <span>{optionText}</span>}
+                                        {optionMath && (
+                                          <span
+                                            className="preview-option-math"
+                                            dangerouslySetInnerHTML={{
+                                              __html: katex.renderToString(optionMath, {
+                                                throwOnError: false,
+                                                strict: false,
+                                                output: "html"
+                                              })
+                                            }}
+                                          />
+                                        )}
+                                        {!optionText && !optionMath && optionValue}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="preview-short-answer">Short answer</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
