@@ -145,15 +145,15 @@ function normalizeMathText(rawMath) {
   if (!rawMath) {
     return "";
   }
-  let cleaned = rawMath.replace(/[.]+$/g, "");
+  let cleaned = rawMath.replace(/[.?!,]+$/g, "");
   cleaned = cleaned.replace(/∞/g, "\\infty");
   cleaned = cleaned.replace(/\^\(([^)]+)\)/g, "^{$1}");
   cleaned = cleaned.replace(
-    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*\(([^)]+)\)\s*dx/i,
+    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*\(([^)]+)\)\s*dx\b[?.,!]?/i,
     "\\int_{$1}^{$2} $3 \\, dx"
   );
   cleaned = cleaned.replace(
-    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*([^?]+?)\s*dx\b/i,
+    /∫\s*from\s*([^\s]+)\s*to\s*([^\s]+)\s*of\s*([^?]+?)\s*dx\b[?.,!]?/i,
     "\\int_{$1}^{$2} $3 \\, dx"
   );
   cleaned = cleaned.replace(/\s+and\s+/gi, ", ");
