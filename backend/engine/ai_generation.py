@@ -55,7 +55,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '     "<step_id>": {\n'
         '        "id": "<step_id>",\n'
         '        "type": "MC" | "SA",\n'
-        '        "prompt": "<string>",\n'
+        '        "prompt_text": "<string>",\n'
+        '        "prompt_math": "<latex or empty>",\n'
         '        "options": ["<string>", "..."]  // MC only,\n'
         '        "answer": { "kind": "exact", "value": "<option>" }  // MC\n'
         '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
@@ -74,8 +75,9 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
         "- MC options must be full, meaningful answers (no single-letter placeholders like A/B/C/D).\n"
-        "- Put the entire question in prompt exactly as you want it displayed.\n"
-        "- If the prompt contains math, include it inline in the prompt string.\n"
+        "- Use prompt_text for the instruction only (no math tokens, no equations).\n"
+        "- Use prompt_math for the math expression only (LaTeX), or empty if no math.\n"
+        "- The UI will show prompt_text first and prompt_math underneath.\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- Use realistic answer options and feedback.\n"
         "- For SA steps, include solution.steps with 2-5 concise items.\n"

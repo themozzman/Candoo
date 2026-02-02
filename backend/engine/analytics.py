@@ -894,6 +894,8 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
                         f"{(step.get('prompt_text') or step.get('promptText') or '').strip()} "
                         f"{(step.get('prompt_math') or step.get('promptMath') or '').strip()}"
                     ).strip(),
+                    "prompt_text": step.get("prompt_text") or step.get("promptText"),
+                    "prompt_math": step.get("prompt_math") or step.get("promptMath"),
                     "attempts": attempts,
                     "correct_count": correct,
                     "wrong_count": wrong,
@@ -912,6 +914,8 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
                         f"{(step.get('prompt_text') or step.get('promptText') or '').strip()} "
                         f"{(step.get('prompt_math') or step.get('promptMath') or '').strip()}"
                     ).strip(),
+                    "prompt_text": step.get("prompt_text") or step.get("promptText"),
+                    "prompt_math": step.get("prompt_math") or step.get("promptMath"),
                     "students_reached": reached,
                     "students_correct": correct_students,
                 }

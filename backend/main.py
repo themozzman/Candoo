@@ -645,6 +645,8 @@ def admin_flow_preview(
                 f"{(step.get('prompt_text') or step.get('promptText') or '').strip()} "
                 f"{(step.get('prompt_math') or step.get('promptMath') or '').strip()}"
             ).strip(),
+            "prompt_text": step.get("prompt_text") or step.get("promptText"),
+            "prompt_math": step.get("prompt_math") or step.get("promptMath"),
             "options": step.get("options", []),
         }
         for step in flow["steps"].values()

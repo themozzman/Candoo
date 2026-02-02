@@ -165,6 +165,8 @@ def _step_payload(step: dict) -> dict:
         "id": step["id"],
         "type": step["type"],
         "prompt": _prompt_string(step),
+        "prompt_text": step.get("prompt_text") or step.get("promptText"),
+        "prompt_math": step.get("prompt_math") or step.get("promptMath"),
         "options": step.get("options", []),
         "solution": step.get("solution"),
     }
