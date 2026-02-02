@@ -617,7 +617,11 @@ def admin_flow_preview(
     _require_admin_or_flow_token(payload.token, user)
     flow = app.state.flows.get(payload.flow_id)
     if flow is None:
-        raise HTTPException(status_code=404, detail="Flow not found")
+        record = get_ai_flow(DB_PATH, payload.flow_id)
+        if record:
+            flow = record["flow"]
+        else:
+            raise HTTPException(status_code=404, detail="Flow not found")
     steps = [
         {
             "id": step["id"],
