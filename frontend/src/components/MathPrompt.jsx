@@ -146,6 +146,10 @@ function normalizeMathText(rawMath) {
     return "";
   }
   let cleaned = rawMath.replace(/[.?!,]+$/g, "");
+  cleaned = cleaned
+    .replace(/\bfrom(?=[0-9(\\∞])/gi, "from ")
+    .replace(/\bto(?=[0-9(\\∞])/gi, "to ")
+    .replace(/\bof(?=\()/gi, "of ");
   cleaned = cleaned.replace(/\^\(([^)]+)\)/g, "^{$1}");
   cleaned = cleaned.replace(
     /∫\s*from\s*([^\s]+)\s*to\s*(∞|\\infty)\s*of\s*\(([^)]+)\)\s*dx\b[?.,!]?/i,
