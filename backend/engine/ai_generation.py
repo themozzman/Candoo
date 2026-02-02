@@ -161,6 +161,7 @@ def _normalize_flow_math(flow: dict) -> dict:
             continue
         _normalize_step_prompt(step)
         _normalize_step_options(step)
+        _assert_step_math_clean(step)
 
     return flow
 
@@ -244,6 +245,26 @@ def _split_option_text_math(value: str) -> tuple[str, str]:
     if not _contains_math(value):
         return value, ""
     return "", value
+
+
+def _assert_step_math_clean(step: dict) -> None:
+    prompt_text = step.get("prompt_text") or ""
+    if _contains_math(prompt_text):
+        raise AIFlowError(
+            "Generated prompt_text contains math; regenerate flow with structured math fields."
+        )
+    if step.get("type") != "MC":
+        return
+    options = step.get("options") or []
+    for option in options:
+        if not isinstance(option, dict):
+            continue
+        text = option.get("text") or ""
+        math = option.get("math") or ""
+        if _contains_math(text) and not math:
+            raise AIFlowError(
+                "Generated MC option text contains math; regenerate flow with structured math fields."
+            )
 
 
 def now_label() -> str:
