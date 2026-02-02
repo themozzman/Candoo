@@ -86,7 +86,7 @@ ADMIN_EMAILS = [
 ]
 ADMIN_USERNAMES = [
     username.strip().lower()
-    for username in os.environ.get("ADMIN_USERNAMES", "andrestoussieh").split(",")
+    for username in os.environ.get("ADMIN_USERNAMES", "").split(",")
     if username.strip()
 ]
 COOKIE_NAME = "session_token"
