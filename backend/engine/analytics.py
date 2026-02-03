@@ -209,6 +209,15 @@ def _ensure_courses(conn: "DBConnection") -> None:
     empty_tags = json.dumps([])
     defaults = [
         (
+            "261math-10b-2",
+            "261MATH-10B-2",
+            "Techniques of Calculus (b)",
+            "Techniques of Calculus (b).",
+            math_tags,
+            None,
+            now,
+        ),
+        (
             "french-10a",
             "French 10A",
             "Introduction to French",
