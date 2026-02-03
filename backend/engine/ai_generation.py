@@ -282,6 +282,38 @@ def _repair_trig_boundary(text: str, math: str) -> tuple[str, str]:
     return text, math
 
 
+def _drop_partial_trig(text: str, math: str) -> str:
+    if not text or not math:
+        return text
+    text_lower = text.lower()
+    math_lower = math.lower()
+    prefixes = {
+        "si": "sin",
+        "co": "cos",
+        "ta": "tan",
+        "se": "sec",
+        "cs": "csc",
+        "co": "cot",
+    }
+    for prefix, full in prefixes.items():
+        if text_lower.endswith(prefix) and full in math_lower:
+            return text[: -len(prefix)].rstrip()
+    return text
+
+
+def _strip_trailing_punct(text: str, math: str) -> tuple[str, str]:
+    if not math:
+        return text, math
+    match = re.search(r"([?!.,;:])$", math)
+    if not match:
+        return text, math
+    punct = match.group(1)
+    math = math[: -1].rstrip()
+    text = (text or "").rstrip()
+    text = f"{text}{punct}" if text else punct
+    return text, math
+
+
 def _normalize_function_calls(value: str) -> str:
     if not value:
         return value
@@ -295,6 +327,11 @@ def _normalize_function_calls(value: str) -> str:
     cleaned = re.sub(r"\bln\s*\(", r"\\ln(", cleaned)
     cleaned = re.sub(r"\blog\s*\(", r"\\log(", cleaned)
     cleaned = re.sub(r"\bsqrt\s*\(", r"\\sqrt(", cleaned)
+    cleaned = re.sub(
+        r"(?<!\\)\b(sin|cos|tan|sec|csc|cot|ln|log|sqrt)\b",
+        r"\\\1",
+        cleaned,
+    )
     return cleaned
 
 
@@ -322,6 +359,9 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
             text, _ = _repair_trig_boundary(text, prompt_math)
             step["prompt_text"] = text
         if prompt_math:
+            prompt_text = _drop_partial_trig(prompt_text, prompt_math)
+            prompt_text, prompt_math = _strip_trailing_punct(prompt_text, prompt_math)
+            step["prompt_text"] = prompt_text
             step["prompt_math"] = _normalize_function_calls(prompt_math)
         if step.get("type") != "MC":
             continue
@@ -331,6 +371,11 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
                 continue
             text = (option.get("text") or "").strip()
             math = (option.get("math") or "").strip()
+            if text in {"-", "+"} and math:
+                option["text"] = ""
+                option["math"] = f"{text}{math}"
+                text = ""
+                math = option["math"]
             if math or not _contains_math_tokens(text):
                 continue
             text_part, math_part = _split_text_math(text)
