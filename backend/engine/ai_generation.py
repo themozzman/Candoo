@@ -82,16 +82,17 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Ensure the flow teaches the topic and captures insights aligned to the spec.\n"
         "- Each step must include an insights object.\n"
         "- MC options must be full, meaningful answers (no single-letter placeholders like A/B/C/D).\n"
-        "- Use prompt_text for the instruction only (no math tokens, no equations).\n"
-        "- Use prompt_math for the math expression only (LaTeX), or empty if no math.\n"
+        "- Use prompt_text for the instruction only (English only, no math tokens, no equations).\n"
+        "- Use prompt_math for the math expression only (pure LaTeX), or empty if no math.\n"
         "- The UI will show prompt_text first and prompt_math underneath.\n"
         "- Do not repeat the math expression in prompt_text when prompt_math is present.\n"
         "- For SA: prompt_text should be the action (e.g., \"Evaluate the convergence of\"), and the full expression goes in prompt_math.\n"
         "- For MC options, choose exactly one of these formats:\n"
         "  1) All math options: text empty, math contains the full option in LaTeX.\n"
-        "  2) Mixed English + math: text contains the English clause, math contains the LaTeX expression.\n"
+        "  2) Mixed English + math: text contains the English clause only, math contains the LaTeX expression only.\n"
         "     The UI will show text first and the math underneath for that option.\n"
         "  3) All English options: text contains the full option, math is empty.\n"
+        "- Option text must be English-only (no math tokens).\n"
         "- MC option objects must include a stable value field used by the answer.\n"
         "- If the course is non-math, prompt_math should be empty and options should be English-only.\n"
         "- Self-check before output: ensure prompt_text has no math tokens and prompt_math has no English words.\n"
@@ -346,14 +347,17 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
             continue
         prompt_text = (step.get("prompt_text") or step.get("promptText") or "").strip()
         prompt_math = (step.get("prompt_math") or step.get("promptMath") or "").strip()
-        if not prompt_math and _contains_math_tokens(prompt_text):
+        if _contains_math_tokens(prompt_text):
             text, math = _split_text_math(prompt_text)
             text, math = _repair_trig_boundary(text, math)
-            if math:
+            if math and not prompt_math:
                 step["prompt_text"] = text
                 step["prompt_math"] = math
                 prompt_text = text
                 prompt_math = math
+            elif math:
+                step["prompt_text"] = text
+                prompt_text = text
         if prompt_math and _PROMPT_EXPRESSION_RE.search(prompt_text):
             text, _ = _split_text_math(prompt_text)
             text, _ = _repair_trig_boundary(text, prompt_math)
@@ -376,6 +380,16 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
                 option["math"] = f"{text}{math}"
                 text = ""
                 math = option["math"]
+            if _contains_math_tokens(text):
+                text_part, math_part = _split_text_math(text)
+                text_part, math_part = _repair_trig_boundary(text_part, math_part)
+                if math_part and not math:
+                    option["text"] = text_part
+                    option["math"] = math_part
+                else:
+                    option["text"] = text_part
+                text = option.get("text", "").strip()
+                math = option.get("math", "").strip()
             if math or not _contains_math_tokens(text):
                 continue
             text_part, math_part = _split_text_math(text)
@@ -401,8 +415,8 @@ def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
             continue
         prompt_text = (step.get("prompt_text") or step.get("promptText") or "").strip()
         prompt_math = (step.get("prompt_math") or step.get("promptMath") or "").strip()
-        if _contains_math_tokens(prompt_text) and not prompt_math:
-            raise AIFlowError("prompt_text contains math but prompt_math is empty")
+        if _contains_math_tokens(prompt_text):
+            raise AIFlowError("prompt_text contains math; keep math in prompt_math only")
         if prompt_math and _PROMPT_EXPRESSION_RE.search(prompt_text):
             raise AIFlowError("prompt_text repeats the math expression; keep it in prompt_math")
         if prompt_math and _contains_english_words(prompt_math):
@@ -417,8 +431,8 @@ def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
             math = (option.get("math") or "").strip()
             if text == "" and math == "":
                 raise AIFlowError("MC option is empty")
-            if _contains_math_tokens(text) and not math:
-                raise AIFlowError("MC option text contains math but math is empty")
+            if _contains_math_tokens(text):
+                raise AIFlowError("MC option text contains math; keep math in option.math only")
             if math and _contains_english_words(math):
                 raise AIFlowError("MC option math contains English words")
 
