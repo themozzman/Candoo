@@ -252,6 +252,52 @@ def _split_text_math(value: str) -> tuple[str, str]:
     return text, math
 
 
+def _repair_trig_boundary(text: str, math: str) -> tuple[str, str]:
+    if not text or not math:
+        return text, math
+    last_word = re.search(r"([A-Za-z]+)$", text)
+    first_word = re.match(r"^([A-Za-z]+)", math)
+    if not last_word or not first_word:
+        return text, math
+    combined = (last_word.group(1) + first_word.group(1)).lower()
+    function_names = {
+        "sin",
+        "cos",
+        "tan",
+        "sec",
+        "csc",
+        "cot",
+        "ln",
+        "log",
+        "sqrt",
+    }
+    if combined not in function_names:
+        return text, math
+    text = text[: -len(last_word.group(1))].rstrip()
+    math = math[len(first_word.group(1)) :].lstrip()
+    if math and not math.startswith("("):
+        math = f"{combined} {math}"
+    else:
+        math = f"{combined}{math}"
+    return text, math
+
+
+def _normalize_function_calls(value: str) -> str:
+    if not value:
+        return value
+    cleaned = value
+    cleaned = re.sub(r"\bsin\s*\(", r"\\sin(", cleaned)
+    cleaned = re.sub(r"\bcos\s*\(", r"\\cos(", cleaned)
+    cleaned = re.sub(r"\btan\s*\(", r"\\tan(", cleaned)
+    cleaned = re.sub(r"\bsec\s*\(", r"\\sec(", cleaned)
+    cleaned = re.sub(r"\bcsc\s*\(", r"\\csc(", cleaned)
+    cleaned = re.sub(r"\bcot\s*\(", r"\\cot(", cleaned)
+    cleaned = re.sub(r"\bln\s*\(", r"\\ln(", cleaned)
+    cleaned = re.sub(r"\blog\s*\(", r"\\log(", cleaned)
+    cleaned = re.sub(r"\bsqrt\s*\(", r"\\sqrt(", cleaned)
+    return cleaned
+
+
 def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
     if not is_math_course:
         return
@@ -265,6 +311,7 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
         prompt_math = (step.get("prompt_math") or step.get("promptMath") or "").strip()
         if not prompt_math and _contains_math_tokens(prompt_text):
             text, math = _split_text_math(prompt_text)
+            text, math = _repair_trig_boundary(text, math)
             if math:
                 step["prompt_text"] = text
                 step["prompt_math"] = math
@@ -272,7 +319,10 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
                 prompt_math = math
         if prompt_math and _PROMPT_EXPRESSION_RE.search(prompt_text):
             text, _ = _split_text_math(prompt_text)
+            text, _ = _repair_trig_boundary(text, prompt_math)
             step["prompt_text"] = text
+        if prompt_math:
+            step["prompt_math"] = _normalize_function_calls(prompt_math)
         if step.get("type") != "MC":
             continue
         options = step.get("options") or []
@@ -284,12 +334,15 @@ def _repair_math_formatting(flow: dict, is_math_course: bool) -> None:
             if math or not _contains_math_tokens(text):
                 continue
             text_part, math_part = _split_text_math(text)
+            text_part, math_part = _repair_trig_boundary(text_part, math_part)
             if math_part:
                 option["text"] = text_part
                 option["math"] = math_part
             else:
                 option["text"] = ""
                 option["math"] = text
+            if option.get("math"):
+                option["math"] = _normalize_function_calls(option["math"])
 
 
 def _validate_math_formatting(flow: dict, is_math_course: bool) -> None:
