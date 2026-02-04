@@ -25,6 +25,20 @@ G6_RUBRIC = {
     ],
 }
 
+F7_RUBRIC = {
+    "outcome": "F7: Evaluate an integral using substitution.",
+    "requirements": [
+        "Two integrals per assessment (definite or indefinite).",
+        "Identify u and du explicitly.",
+        "Include +C on indefinite integrals.",
+        "Definite integrals must evaluate to a number.",
+    ],
+    "response_format": [
+        "u and du specified.",
+        "Final answers correct for both parts.",
+    ],
+}
+
 PLACEHOLDER_RUBRIC = {
     "outcome": "Placeholder rubric (to be specified).",
     "requirements": ["To be defined."],
@@ -33,7 +47,7 @@ PLACEHOLDER_RUBRIC = {
 
 RUBRICS_BY_FOLDER = {
     "G6": G6_RUBRIC,
-    "F7": PLACEHOLDER_RUBRIC,
+    "F7": F7_RUBRIC,
     "G7": PLACEHOLDER_RUBRIC,
     "G8": PLACEHOLDER_RUBRIC,
     "G9": PLACEHOLDER_RUBRIC,
@@ -67,8 +81,8 @@ def generate_spec(topic: str, course: dict) -> dict:
         f"Course: {course.get('id')} - {course.get('name')} ({course.get('subtitle')})\n"
         f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
         f"Rubric JSON:\n{json.dumps(rubric, indent=2)}\n\n"
-        "Question types allowed: SA (preferred), MC (only for concept checks).\n"
-        "Focus on setup-only responses for area between curves."
+        "Question types allowed: SA, MC.\n"
+        "Follow the rubric exactly for the folder."
     )
     spec = base._json_response(client, prompt)
     if not isinstance(spec, dict):
@@ -87,57 +101,112 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     course_tags = base._normalize_tags(spec.get("course_tags") or spec.get("tags"))
     is_math_course = "math" in course_tags
     folder_name = spec.get("folder_name") or "G6"
-    if folder_name != "G6":
+    if folder_name == "G6":
+        prompt = (
+            "You are generating a learning flow JSON for a calculus quiz.\n"
+            "This is Outcome G6: setup integrals for area between curves.\n"
+            "Return ONLY valid JSON that follows this schema:\n"
+            "{\n"
+            '  "schemaVersion": 1,\n'
+            '  "id": "<flow_id>",\n'
+            '  "title": "<string>",\n'
+            '  "topic": "<string>",\n'
+            '  "statement": "<string>",\n'
+            '  "startStepId": "<step_id>",\n'
+            '  "steps": {\n'
+            '     "<step_id>": {\n'
+            '        "id": "<step_id>",\n'
+            '        "type": "MC" | "SA",\n'
+            '        "prompt_text": "<string>",\n'
+            '        "prompt_math": "<latex or empty>",\n'
+            '        "options": [ { "value": "<string>", "text": "<string>", "math": "<latex or empty>" } ]  // MC only,\n'
+            '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
+            '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase","remove_spaces"] }  // SA\n'
+            '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
+            '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
+            '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
+            '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
+            '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" }\n'
+            "     }\n"
+            "  }\n"
+            "}\n\n"
+            "G6 RULES:\n"
+            "- Problems must be area between curves (one may be the x-axis).\n"
+            "- Students must SET UP integrals only; do NOT evaluate.\n"
+            "- No absolute values in final answers.\n"
+            "- If the top/bottom changes, split the integral and show intervals.\n"
+            "- Include intersection points and sign analysis steps.\n"
+            "- Use 4-6 steps total, mostly SA.\n"
+            "- Final step answer must be a sum of definite integrals only.\n\n"
+            "Formatting rules:\n"
+            "- prompt_text is English-only, no math.\n"
+            "- prompt_math is pure LaTeX for the expressions.\n"
+            "- Provide 2-4 acceptable answer strings in answer.values for SA.\n"
+            "- Use \\int and standard LaTeX, no evaluation.\n\n"
+            "Example answer (format only):\n"
+            '  "\\\\int_{a}^{b} (f(x)-g(x)) \\\\, dx + \\\\int_{b}^{c} (g(x)-f(x)) \\\\, dx"\n\n'
+            f"flow_id: {flow_id}\n"
+            f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
+            f"Spec JSON:\n{json.dumps(spec, indent=2)}"
+        )
+    elif folder_name == "F7":
+        prompt = (
+            "You are generating a learning flow JSON for a calculus quiz.\n"
+            "This is Outcome F7: evaluate integrals using substitution.\n"
+            "Return ONLY valid JSON that follows this schema:\n"
+            "{\n"
+            '  "schemaVersion": 1,\n'
+            '  "id": "<flow_id>",\n'
+            '  "title": "<string>",\n'
+            '  "topic": "<string>",\n'
+            '  "statement": "<string>",\n'
+            '  "startStepId": "<step_id>",\n'
+            '  "steps": {\n'
+            '     "<step_id>": {\n'
+            '        "id": "<step_id>",\n'
+            '        "type": "MC" | "SA",\n'
+            '        "prompt_text": "<string>",\n'
+            '        "prompt_math": "<latex or empty>",\n'
+            '        "options": [ { "value": "<string>", "text": "<string>", "math": "<latex or empty>" } ]  // MC only,\n'
+            '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
+            '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase","remove_spaces"] }  // SA\n'
+            '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
+            '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
+            '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
+            '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
+            '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" }\n'
+            "     }\n"
+            "  }\n"
+            "}\n\n"
+            "F7 REQUIRED QUESTION TYPES (include all):\n"
+            "1) MC: identify u and du for an integral.\n"
+            "2) SA: identify u and du for an integral.\n"
+            "3) SA: bounded integral evaluation (numeric final answer).\n"
+            "4) SA: unbounded (indefinite) integral evaluation (+C required).\n"
+            "Use 4-6 steps total and cover all four types.\n\n"
+            "PROMPT FORMAT (no English+math mixing):\n"
+            "- For types 1 & 2:\n"
+            '  prompt_text: "Identify and set u and du for the following integral"\n'
+            "  prompt_math: <integral only in LaTeX>\n"
+            "- For types 3 & 4:\n"
+            '  prompt_text: "Compute the following integral"\n'
+            "  prompt_math: <integral only in LaTeX>\n\n"
+            "MC OPTIONS:\n"
+            '- Each option must be a complete pair like "u = ...; du = ..." (English only in text).\n'
+            "- Do NOT use math symbols in prompt_text.\n"
+            "- Use prompt_math for the integral only.\n\n"
+            "ANSWER RULES:\n"
+            "- Indefinite results must include + C.\n"
+            "- Definite results must be a number (evaluate bounds).\n"
+            "- Always show correct u and du in solutions.\n\n"
+            f"flow_id: {flow_id}\n"
+            f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
+            f"Spec JSON:\n{json.dumps(spec, indent=2)}"
+        )
+    else:
         raise AIFlowError(
             f"Quiz generator for folder {folder_name} is not implemented yet."
         )
-    prompt = (
-        "You are generating a learning flow JSON for a calculus quiz.\n"
-        "This is Outcome G6: setup integrals for area between curves.\n"
-        "Return ONLY valid JSON that follows this schema:\n"
-        "{\n"
-        '  "schemaVersion": 1,\n'
-        '  "id": "<flow_id>",\n'
-        '  "title": "<string>",\n'
-        '  "topic": "<string>",\n'
-        '  "statement": "<string>",\n'
-        '  "startStepId": "<step_id>",\n'
-        '  "steps": {\n'
-        '     "<step_id>": {\n'
-        '        "id": "<step_id>",\n'
-        '        "type": "MC" | "SA",\n'
-        '        "prompt_text": "<string>",\n'
-        '        "prompt_math": "<latex or empty>",\n'
-        '        "options": [ { "value": "<string>", "text": "<string>", "math": "<latex or empty>" } ]  // MC only,\n'
-        '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
-        '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase","remove_spaces"] }  // SA\n'
-        '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
-        '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
-        '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
-        '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
-        '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" }\n'
-        "     }\n"
-        "  }\n"
-        "}\n\n"
-        "G6 RULES:\n"
-        "- Problems must be area between curves (one may be the x-axis).\n"
-        "- Students must SET UP integrals only; do NOT evaluate.\n"
-        "- No absolute values in final answers.\n"
-        "- If the top/bottom changes, split the integral and show intervals.\n"
-        "- Include intersection points and sign analysis steps.\n"
-        "- Use 4-6 steps total, mostly SA.\n"
-        "- Final step answer must be a sum of definite integrals only.\n\n"
-        "Formatting rules:\n"
-        "- prompt_text is English-only, no math.\n"
-        "- prompt_math is pure LaTeX for the expressions.\n"
-        "- Provide 2-4 acceptable answer strings in answer.values for SA.\n"
-        "- Use \\int and standard LaTeX, no evaluation.\n\n"
-        "Example answer (format only):\n"
-        '  "\\\\int_{a}^{b} (f(x)-g(x)) \\\\, dx + \\\\int_{b}^{c} (g(x)-f(x)) \\\\, dx"\n\n'
-        f"flow_id: {flow_id}\n"
-        f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
-        f"Spec JSON:\n{json.dumps(spec, indent=2)}"
-    )
     flow = base._json_response(client, prompt)
     if not isinstance(flow, dict):
         raise AIFlowError("Flow response must be a JSON object")
