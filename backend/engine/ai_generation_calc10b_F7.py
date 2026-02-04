@@ -28,52 +28,24 @@ F7_SA_ONLY_RUBRIC = {
     ],
 }
 
-F7_SA_ONLY_INSTRUCTIONS = (
-    "You are generating a learning flow JSON for a calculus quiz (F7: substitution).\n"
-    "Return ONLY valid JSON that follows this schema:\n"
+F7_MATH_ONLY_INSTRUCTIONS = (
+    "You are generating math-only content for a calculus quiz (F7: substitution).\n"
+    "Return ONLY valid JSON with these keys (all values are LaTeX-only, no English):\n"
     "{\n"
-    '  "schemaVersion": 1,\n'
-    '  "id": "<flow_id>",\n'
-    '  "title": "<string>",\n'
-    '  "topic": "<string>",\n'
-    '  "statement": "<string>",\n'
-    '  "startStepId": "<step_id>",\n'
-    '  "steps": {\n'
-    '     "<step_id>": {\n'
-    '        "id": "<step_id>",\n'
-    '        "type": "SA",\n'
-    '        "prompt_text": "<string>",\n'
-    '        "prompt_math": "<latex or empty>",\n'
-    '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase","remove_spaces"] },\n'
-    '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
-    '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
-    '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
-    '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" }\n'
-    "     }\n"
-    "  }\n"
+    '  "integral_for_u": "<latex integral>",\n'
+    '  "u_expression": "<latex expression>",\n'
+    '  "du_expression": "<latex expression>",\n'
+    '  "bounded_integral": "<latex integral with bounds>",\n'
+    '  "bounded_answer": "<latex numeric result>",\n'
+    '  "unbounded_integral": "<latex integral>",\n'
+    '  "unbounded_answer": "<latex antiderivative with + C>"\n'
     "}\n\n"
-    "REQUIRED STEPS (exactly 4, all SA):\n"
-    "1) Find u.\n"
-    "2) Find du.\n"
-    "3) Compute bounded integral.\n"
-    "4) Compute unbounded (indefinite) integral.\n\n"
-    "PROMPT RULES (must follow):\n"
-    "- prompt_text is English only (no math symbols).\n"
-    "- All math goes in prompt_math.\n\n"
-    "PROMPTS & STRUCTURE:\n"
-    '1) prompt_text: "Identify the correct choice of u for the following integral."\n'
-    "   prompt_math: <integral only in LaTeX>\n"
-    '2) prompt_text: "Identify the correct choice of du for the following substitution."\n'
-    "   prompt_math: <the u found in step 1, LaTeX only>\n"
-    '3) prompt_text: "Compute the following integral."\n'
-    "   prompt_math: <bounded integral only in LaTeX>\n"
-    '4) prompt_text: "Compute the following integral."\n'
-    "   prompt_math: <unbounded integral only in LaTeX>\n\n"
-    "ANSWER RULES:\n"
-    "- Step 1: provide multiple acceptable u forms in answer.values.\n"
-    "- Step 2: provide multiple acceptable du forms in answer.values.\n"
-    "- Step 3: final answer must be a number (evaluate bounds).\n"
-    "- Step 4: final answer must include + C.\n"
+    "Rules:\n"
+    "- Provide math only (no words like 'from', 'to', 'evaluate', etc.).\n"
+    "- The u_expression must match the integral_for_u.\n"
+    "- The du_expression must be the correct differential for u.\n"
+    "- bounded_answer must be a number.\n"
+    "- unbounded_answer must include + C.\n"
 )
 
 
@@ -118,23 +90,93 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     course_tags = base._normalize_tags(spec.get("course_tags") or spec.get("tags"))
     is_math_course = "math" in course_tags
     prompt = (
-        F7_SA_ONLY_INSTRUCTIONS
+        F7_MATH_ONLY_INSTRUCTIONS
         + "\n\n"
-        + f"flow_id: {flow_id}\n"
         + f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
         + f"Spec JSON:\n{json.dumps(spec, indent=2)}"
     )
-    flow = base._json_response(client, prompt)
-    if not isinstance(flow, dict):
-        raise AIFlowError("Flow response must be a JSON object")
-    flow["schemaVersion"] = 1
-    flow["id"] = flow_id
-    steps = flow.get("steps")
-    if isinstance(steps, dict) and steps:
-        step_ids = list(steps.keys())
-        last_step = steps.get(step_ids[-1])
-        if isinstance(last_step, dict):
-            last_step["next"] = {"correct": None, "wrong": None, "skip": None}
+    math_payload = base._json_response(client, prompt)
+    if not isinstance(math_payload, dict):
+        raise AIFlowError("Math response must be a JSON object")
+
+    def _values(value: str | list[str]) -> list[str]:
+        if isinstance(value, list):
+            return [str(item) for item in value if str(item).strip()]
+        if value is None:
+            return []
+        return [str(value)]
+
+    step_ids = ["step1", "step2", "step3", "step4"]
+    flow = {
+        "schemaVersion": 1,
+        "id": flow_id,
+        "title": spec.get("title") or "F7 Substitution",
+        "topic": spec.get("topic") or "Substitution",
+        "statement": spec.get("statement") or "",
+        "startStepId": step_ids[0],
+        "steps": {
+            "step1": {
+                "id": "step1",
+                "type": "SA",
+                "prompt_text": "Identify the correct choice of u for the following integral.",
+                "prompt_math": math_payload.get("integral_for_u", ""),
+                "answer": {
+                    "kind": "normalized_set",
+                    "values": _values(math_payload.get("u_expression", "")),
+                    "normalize": ["trim", "lowercase", "remove_spaces"],
+                },
+                "feedback": {"wrongHint": "", "explanation": ""},
+                "solution": {"steps": []},
+                "attemptPolicy": {"revealAfter": 2, "allowSkip": True},
+                "next": {"correct": "step2", "wrong": "step2", "skip": "step2"},
+            },
+            "step2": {
+                "id": "step2",
+                "type": "SA",
+                "prompt_text": "Identify the correct choice of du for the following substitution.",
+                "prompt_math": math_payload.get("u_expression", ""),
+                "answer": {
+                    "kind": "normalized_set",
+                    "values": _values(math_payload.get("du_expression", "")),
+                    "normalize": ["trim", "lowercase", "remove_spaces"],
+                },
+                "feedback": {"wrongHint": "", "explanation": ""},
+                "solution": {"steps": []},
+                "attemptPolicy": {"revealAfter": 2, "allowSkip": True},
+                "next": {"correct": "step3", "wrong": "step3", "skip": "step3"},
+            },
+            "step3": {
+                "id": "step3",
+                "type": "SA",
+                "prompt_text": "Compute the following integral.",
+                "prompt_math": math_payload.get("bounded_integral", ""),
+                "answer": {
+                    "kind": "normalized_set",
+                    "values": _values(math_payload.get("bounded_answer", "")),
+                    "normalize": ["trim", "lowercase", "remove_spaces"],
+                },
+                "feedback": {"wrongHint": "", "explanation": ""},
+                "solution": {"steps": []},
+                "attemptPolicy": {"revealAfter": 2, "allowSkip": True},
+                "next": {"correct": "step4", "wrong": "step4", "skip": "step4"},
+            },
+            "step4": {
+                "id": "step4",
+                "type": "SA",
+                "prompt_text": "Compute the following integral.",
+                "prompt_math": math_payload.get("unbounded_integral", ""),
+                "answer": {
+                    "kind": "normalized_set",
+                    "values": _values(math_payload.get("unbounded_answer", "")),
+                    "normalize": ["trim", "lowercase", "remove_spaces"],
+                },
+                "feedback": {"wrongHint": "", "explanation": ""},
+                "solution": {"steps": []},
+                "attemptPolicy": {"revealAfter": 2, "allowSkip": True},
+                "next": {"correct": None, "wrong": None, "skip": None},
+            },
+        },
+    }
     base._repair_math_formatting(flow, is_math_course)
     base._validate_math_formatting(flow, is_math_course)
     return flow
