@@ -30,6 +30,7 @@ from sympy.parsing.sympy_parser import (
 )
 from sympy.simplify import simplify
 from sympy.core.sympify import SympifyError
+from tokenize import TokenError
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,7 @@ def _parse_math_expressions(value: str) -> list[object]:
                 evaluate=True,
             )
             variants.append(expr)
-    except (SympifyError, SyntaxError, TypeError, ValueError):
+    except (SympifyError, SyntaxError, TypeError, ValueError, TokenError):
         return []
     return variants
 
