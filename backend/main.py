@@ -667,6 +667,9 @@ def admin_ai_spec_approve(payload: AdminSpecApproveRequest) -> dict:
     except (AIFlowError, FlowValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     save_ai_flow(DB_PATH, flow_id, record["id"], record["course_id"], flow)
+    folder_id = spec.get("folder_id")
+    if folder_id:
+        move_quiz_to_folder(DB_PATH, record["course_id"], flow_id, folder_id)
     return {"flow_id": flow_id, "flow": flow}
 
 
