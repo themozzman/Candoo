@@ -25,13 +25,33 @@ G6_RUBRIC = {
     ],
 }
 
+PLACEHOLDER_RUBRIC = {
+    "outcome": "Placeholder rubric (to be specified).",
+    "requirements": ["To be defined."],
+    "response_format": ["To be defined."],
+}
+
+RUBRICS_BY_FOLDER = {
+    "G6": G6_RUBRIC,
+    "F7": PLACEHOLDER_RUBRIC,
+    "G7": PLACEHOLDER_RUBRIC,
+    "G8": PLACEHOLDER_RUBRIC,
+    "G9": PLACEHOLDER_RUBRIC,
+}
+
 
 def generate_spec(topic: str, course: dict) -> dict:
     client = base._client()
     course_tags = base._normalize_tags(course.get("tags"))
+    folder_name = course.get("folder_name") or "G6"
+    rubric = RUBRICS_BY_FOLDER.get(folder_name)
+    if rubric is None:
+        raise AIFlowError(
+            f"Rubric for folder {folder_name} is not implemented yet."
+        )
     prompt = (
         "You are a curriculum designer for a calculus course.\n"
-        "Create a JSON teaching spec for G6 (area between curves).\n"
+        f"Create a JSON teaching spec for folder {folder_name}.\n"
         "Return ONLY valid JSON.\n\n"
         "Required JSON keys:\n"
         "- topic: string\n"
@@ -46,7 +66,7 @@ def generate_spec(topic: str, course: dict) -> dict:
         f"Topic: {topic}\n"
         f"Course: {course.get('id')} - {course.get('name')} ({course.get('subtitle')})\n"
         f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
-        f"Rubric JSON:\n{json.dumps(G6_RUBRIC, indent=2)}\n\n"
+        f"Rubric JSON:\n{json.dumps(rubric, indent=2)}\n\n"
         "Question types allowed: SA (preferred), MC (only for concept checks).\n"
         "Focus on setup-only responses for area between curves."
     )
@@ -56,7 +76,9 @@ def generate_spec(topic: str, course: dict) -> dict:
     spec["topic"] = topic
     spec["course_id"] = course.get("id")
     spec["course_tags"] = course_tags
-    spec["rubric"] = G6_RUBRIC
+    spec["rubric"] = rubric
+    spec["folder_id"] = course.get("folder_id")
+    spec["folder_name"] = folder_name
     return spec
 
 
@@ -64,6 +86,11 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     client = base._client()
     course_tags = base._normalize_tags(spec.get("course_tags") or spec.get("tags"))
     is_math_course = "math" in course_tags
+    folder_name = spec.get("folder_name") or "G6"
+    if folder_name != "G6":
+        raise AIFlowError(
+            f"Quiz generator for folder {folder_name} is not implemented yet."
+        )
     prompt = (
         "You are generating a learning flow JSON for a calculus quiz.\n"
         "This is Outcome G6: setup integrals for area between curves.\n"

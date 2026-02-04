@@ -14,6 +14,7 @@ from engine.analytics import (
     get_course,
     get_teacher_report,
     init_db,
+    get_quiz_folder,
     list_quiz_folders,
     delete_user,
     list_approved_flows,
@@ -169,6 +170,7 @@ class AdminSpecRequest(BaseModel):
     token: str
     topic: str
     course_id: str
+    folder_id: str | None = None
 
 
 class AdminSpecApproveRequest(BaseModel):
@@ -625,9 +627,23 @@ def admin_ai_spec(payload: AdminSpecRequest) -> dict:
     course = get_course(DB_PATH, payload.course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
+    folder_name = None
+    folder_id = payload.folder_id
+    if folder_id:
+        folder = get_quiz_folder(DB_PATH, payload.course_id, folder_id)
+        if folder:
+            folder_name = folder.get("name")
+        else:
+            raise HTTPException(status_code=404, detail="Folder not found")
+    if folder_name is None:
+        folders = list_quiz_folders(DB_PATH, payload.course_id)
+        if folders:
+            folder_id = folders[0]["id"]
+            folder_name = folders[0]["name"]
+    course_payload = {**course, "folder_id": folder_id, "folder_name": folder_name}
     try:
         generator = get_quiz_generator(payload.course_id)
-        spec = generator.generate_spec(payload.topic, course)
+        spec = generator.generate_spec(payload.topic, course_payload)
     except AIFlowError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     spec_id = f"spec-{payload.course_id}-{now_label()}"

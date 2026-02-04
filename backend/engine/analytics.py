@@ -517,6 +517,23 @@ def create_quiz_folder(db_path: str, course_id: str, name: str) -> dict:
         conn.close()
 
 
+def get_quiz_folder(db_path: str, course_id: str, folder_id: str) -> dict | None:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, name
+            FROM quiz_folders
+            WHERE id = ? AND course_id = ?
+            """,
+            (folder_id, course_id),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
 def rename_quiz_folder(db_path: str, course_id: str, folder_id: str, name: str) -> None:
     conn = connect_db(db_path)
     try:

@@ -63,6 +63,7 @@ export default function App() {
   const [adminFolderStatus, setAdminFolderStatus] = useState("");
   const [adminNewFolderName, setAdminNewFolderName] = useState("");
   const [adminFolderRenames, setAdminFolderRenames] = useState({});
+  const [adminFolderId, setAdminFolderId] = useState("");
   const [adminChecklist, setAdminChecklist] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminCourseRosterId, setAdminCourseRosterId] = useState("");
@@ -175,7 +176,14 @@ export default function App() {
     }
     adminListQuizFolders(adminToken || "", courseId)
       .then((data) => {
-        setAdminFolders(data.folders || []);
+        const folders = data.folders || [];
+        setAdminFolders(folders);
+        if (folders.length > 0) {
+          const exists = folders.some((folder) => folder.id === adminFolderId);
+          if (!exists) {
+            setAdminFolderId(folders[0].id);
+          }
+        }
         setAdminFolderStatus("");
       })
       .catch((err) => setAdminFolderStatus(err.message));
@@ -711,7 +719,12 @@ export default function App() {
     updateChecklist({ spec: "in_progress", flow: "pending", validate: "pending", ready: "pending" });
     try {
       const courseId = adminCourseId || selectedCourseId;
-      const data = await adminGenerateSpec(adminToken, adminTopic, courseId);
+      const data = await adminGenerateSpec(
+        adminToken,
+        adminTopic,
+        courseId,
+        adminFolderId
+      );
       setAdminSpec(data.spec);
       setAdminSpecId(data.spec_id);
       setAdminSpecText(JSON.stringify(data.spec, null, 2));
@@ -1656,13 +1669,17 @@ export default function App() {
                       <div className="admin-block">
                         <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
                           <div className="form-field">
-                            <label className="form-label">Course</label>
+                            <label className="form-label">Folder</label>
                             <select
                               className="form-select"
-                              value={adminCourseId || selectedCourseId}
-                              onChange={(event) => setAdminCourseId(event.target.value)}
+                              value={adminFolderId}
+                              onChange={(event) => setAdminFolderId(event.target.value)}
                             >
-                              {courseOptions}
+                              {adminFolders.map((folder) => (
+                                <option key={folder.id} value={folder.id}>
+                                  {folder.name}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div className="form-field">
