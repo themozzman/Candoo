@@ -44,6 +44,9 @@ F7_MATH_ONLY_INSTRUCTIONS = (
     "- Provide math only (no words like 'from', 'to', 'evaluate', etc.).\n"
     "- The u_expression must match the integral_for_u.\n"
     "- The du_expression must be the correct differential for u.\n"
+    "- bounded_integral must be different from integral_for_u.\n"
+    "- unbounded_integral must be different from integral_for_u.\n"
+    "- bounded_integral and unbounded_integral must be different from each other.\n"
     "- bounded_answer must be a number.\n"
     "- unbounded_answer must include + C.\n"
 )
