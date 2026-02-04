@@ -240,6 +240,8 @@ def _repair_f7_flow(flow: dict) -> None:
     for step_id, step in steps.items():
         if not isinstance(step, dict):
             continue
+        original_prompt_text = step.get("prompt_text") or ""
+        original_prompt_math = step.get("prompt_math") or ""
         f7_type = step.get("f7_type")
         if not f7_type:
             step_type = step.get("type")
@@ -250,12 +252,19 @@ def _repair_f7_flow(flow: dict) -> None:
             step["f7_type"] = f7_type
         if f7_type in f7_type_text:
             step["prompt_text"] = f7_type_text[f7_type]
-        prompt_math = step.get("prompt_math")
+        prompt_math = step.get("prompt_math") or ""
+        if not prompt_math and original_prompt_text:
+            _, extracted_math = base._split_text_math(original_prompt_text)
+            if extracted_math:
+                step["prompt_math"] = extracted_math
+                prompt_math = extracted_math
         if isinstance(prompt_math, str) and prompt_math.startswith("\\int"):
             prompt_math = prompt_math.replace("\n", " ").strip()
             prompt_math = " ".join(prompt_math.split())
             step["prompt_math"] = prompt_math
-            remaining.discard(f7_type)
+        if base._contains_math_tokens(step.get("prompt_text") or ""):
+            step["prompt_text"] = f7_type_text.get(f7_type, "")
+        remaining.discard(f7_type)
         step_type = step.get("type")
         if step_type == "MC":
             options = step.get("options") or []
