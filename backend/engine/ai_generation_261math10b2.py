@@ -174,7 +174,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             '        "solution": { "steps": [ { "text": "<string>", "math": "<string>" } ] },\n'
             '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
             '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
-            '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" }\n'
+            '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" },\n'
+            '        "f7_type": "identify_ud_mc" | "identify_ud_sa" | "compute_definite" | "compute_indefinite"\n'
             "     }\n"
             "  }\n"
             "}\n\n"
@@ -215,7 +216,89 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
+    if folder_name == "F7":
+        _repair_f7_flow(flow)
+        _validate_f7_flow(flow)
     base._repair_math_formatting(flow, is_math_course)
     base._validate_math_formatting(flow, is_math_course)
     base._shuffle_mc_options(flow)
     return flow
+
+
+def _repair_f7_flow(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        raise AIFlowError("Flow steps must be an object")
+    f7_type_text = {
+        "identify_ud_mc": "Identify and set u and du for the following integral",
+        "identify_ud_sa": "Identify and set u and du for the following integral",
+        "compute_definite": "Compute the following integral",
+        "compute_indefinite": "Compute the following integral",
+    }
+    step_ids = list(steps.keys())
+    for step_id, step in steps.items():
+        if not isinstance(step, dict):
+            continue
+        f7_type = step.get("f7_type")
+        if f7_type in f7_type_text:
+            step["prompt_text"] = f7_type_text[f7_type]
+        step_type = step.get("type")
+        if step_type == "MC":
+            options = step.get("options") or []
+            for option in options:
+                if not isinstance(option, dict):
+                    continue
+                if option.get("text"):
+                    option["math"] = option.get("math") or option.get("text")
+                    option["text"] = ""
+            answer = step.get("answer") or {}
+            if answer.get("kind") != "exact":
+                answer["kind"] = "exact"
+            if "value" not in answer and options:
+                answer["value"] = options[0].get("value")
+            step["answer"] = answer
+        elif step_type == "SA":
+            answer = step.get("answer") or {}
+            if answer.get("kind") != "normalized_set":
+                values = answer.get("values") or []
+                if not values and answer.get("value"):
+                    values = [answer.get("value")]
+                answer = {"kind": "normalized_set", "values": values, "normalize": ["trim", "lowercase", "remove_spaces"]}
+            step["answer"] = answer
+
+    if step_ids:
+        last_step = steps.get(step_ids[-1])
+        if isinstance(last_step, dict):
+            last_step["next"] = {"correct": None, "wrong": None, "skip": None}
+
+
+def _validate_f7_flow(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        raise AIFlowError("Flow steps must be an object")
+    required_types = {"identify_ud_mc", "identify_ud_sa", "compute_definite", "compute_indefinite"}
+    seen = set()
+    for step_id, step in steps.items():
+        if not isinstance(step, dict):
+            continue
+        f7_type = step.get("f7_type")
+        if f7_type:
+            seen.add(f7_type)
+        step_type = step.get("type")
+        if step_type == "MC":
+            answer = step.get("answer") or {}
+            if answer.get("kind") != "exact":
+                raise AIFlowError(f"step {step_id} answer.kind must be exact for MC")
+            options = step.get("options") or []
+            for option in options:
+                if not isinstance(option, dict):
+                    continue
+                if option.get("text"):
+                    raise AIFlowError("MC option text contains math; keep math in option.math only")
+        elif step_type == "SA":
+            answer = step.get("answer") or {}
+            if answer.get("kind") != "normalized_set":
+                raise AIFlowError(f"step {step_id} answer.kind must be normalized_set for SA")
+    if not required_types.issubset(seen):
+        missing = sorted(required_types - seen)
+        raise AIFlowError(f"F7 flow missing required step types: {', '.join(missing)}")
