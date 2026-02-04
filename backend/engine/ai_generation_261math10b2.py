@@ -187,8 +187,9 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             "Use 4-6 steps total and cover all four types.\n\n"
             "PROMPT FORMAT (no English+math mixing):\n"
             "- For types 1 & 2:\n"
-            '  prompt_text: "Identify and set u and du for the following integral"\n'
+                    '  prompt_text: "Identify and set u and du for the following integral. Format: u equals ..., du equals ..."\n'
             "  prompt_math: <integral only in LaTeX>\n"
+                    "  (Do not use '=' or any math symbols in prompt_text.)\n"
             "- For types 3 & 4:\n"
             '  prompt_text: "Compute the following integral"\n'
             "  prompt_math: <integral only in LaTeX>\n\n"
@@ -230,8 +231,8 @@ def _repair_f7_flow(flow: dict) -> None:
     if not isinstance(steps, dict) or not steps:
         raise AIFlowError("Flow steps must be an object")
     f7_type_text = {
-        "identify_ud_mc": "Identify and set u and du for the following integral. Format: u = ..., du = ...",
-        "identify_ud_sa": "Identify and set u and du for the following integral. Format: u = ..., du = ...",
+        "identify_ud_mc": "Identify and set u and du for the following integral. Format: u equals ..., du equals ...",
+        "identify_ud_sa": "Identify and set u and du for the following integral. Format: u equals ..., du equals ...",
         "compute_definite": "Compute the following integral",
         "compute_indefinite": "Compute the following integral",
     }
