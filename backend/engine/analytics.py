@@ -271,6 +271,15 @@ def _ensure_courses(conn: "DBConnection") -> None:
             now,
         ),
         (
+            "261fren-20b-1",
+            "261FREN-20B-1",
+            "Continuing French",
+            "Continuing French language study.",
+            empty_tags,
+            None,
+            now,
+        ),
+        (
             "calc-10b",
             "Calc 10B",
             "Calculus",

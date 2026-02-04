@@ -7,12 +7,14 @@ export default function SAStep({
   onAnswer,
   onSkip,
   showMathKeyboard = false,
+  usePlainInput = false,
   disabled = false,
   forceHideKeyboard = false,
   hideSkip = false,
   hideSubmit = false
 }) {
   const mathfieldRef = useRef(null);
+  const plainInputRef = useRef(null);
   const hideSubmitRef = useRef(hideSubmit);
   const isSpotError = /identify the error/i.test(step.prompt || "");
   const keyboardEnabled = showMathKeyboard && !forceHideKeyboard;
@@ -23,7 +25,7 @@ export default function SAStep({
 
   useEffect(() => {
     const mathfield = mathfieldRef.current;
-    if (!mathfield) {
+    if (!mathfield || usePlainInput) {
       return;
     }
     mathfield.setOptions({
@@ -31,11 +33,11 @@ export default function SAStep({
       smartMode: true
     });
     mathfield.readOnly = Boolean(disabled);
-  }, [keyboardEnabled, disabled]);
+  }, [keyboardEnabled, disabled, usePlainInput]);
 
   useEffect(() => {
     const mathfield = mathfieldRef.current;
-    if (!mathfield) {
+    if (!mathfield || usePlainInput) {
       return undefined;
     }
     const handleKeyDown = (event) => {
@@ -48,12 +50,15 @@ export default function SAStep({
     return () => {
       mathfield.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [usePlainInput]);
 
   useEffect(() => {
     const mathfield = mathfieldRef.current;
     if (mathfield) {
       mathfield.value = "";
+    }
+    if (plainInputRef.current) {
+      plainInputRef.current.value = "";
     }
   }, [step?.id]);
 
@@ -103,6 +108,11 @@ export default function SAStep({
     if (hideSubmit) {
       return;
     }
+    if (usePlainInput) {
+      const raw = plainInputRef.current?.value || "";
+      onAnswer(raw);
+      return;
+    }
     const mathfield = mathfieldRef.current;
     const raw = mathfield?.getValue?.("ascii-math") || "";
     onAnswer(normalizeMathInput(raw));
@@ -116,13 +126,23 @@ export default function SAStep({
           Enter the fully corrected answer, not just the error.
         </div>
       )}
-      <math-field
-        ref={mathfieldRef}
-        className="step-input mathlive-input"
-        placeholder={
-          isSpotError ? "e.g., f'(x)=2x sin(x) + x^2 cos(x)" : undefined
-        }
-      />
+      {usePlainInput ? (
+        <textarea
+          ref={plainInputRef}
+          className="step-input"
+          placeholder={isSpotError ? "Type your answer" : undefined}
+          disabled={disabled}
+          rows={3}
+        />
+      ) : (
+        <math-field
+          ref={mathfieldRef}
+          className="step-input mathlive-input"
+          placeholder={
+            isSpotError ? "e.g., f'(x)=2x sin(x) + x^2 cos(x)" : undefined
+          }
+        />
+      )}
       <div className="step-actions">
         {!hideSubmit && (
           <button className="button-primary" type="submit" disabled={disabled}>

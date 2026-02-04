@@ -338,6 +338,7 @@ export default function App() {
   }, [courses, adminCourseRosterId, selectedCourseId]);
 
   const is261Math10b2 = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
+  const is261Fren20b1 = (selectedCourse?.id || selectedCourseId) === "261fren-20b-1";
 
   const courseFlows = useMemo(() => {
     if (!selectedCourseId) {
@@ -1995,6 +1996,7 @@ export default function App() {
                       onAnswer={(value) => handleSubmit(value, false)}
                       onSkip={() => handleSubmit("", true)}
                       showMathKeyboard={isMathCourse}
+                      usePlainInput={is261Fren20b1}
                       disabled={isAdvancing}
                       forceHideKeyboard={Boolean(result?.reveal)}
                       hideSkip={Boolean(result?.reveal)}
