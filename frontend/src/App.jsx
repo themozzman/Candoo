@@ -174,6 +174,10 @@ export default function App() {
       setAdminFolders([]);
       return;
     }
+    if (!adminUsesFolderQuizzes) {
+      setAdminFolders([]);
+      return;
+    }
     adminListQuizFolders(adminToken || "", courseId)
       .then((data) => {
         const folders = data.folders || [];
@@ -227,7 +231,11 @@ export default function App() {
     if (viewMode !== "student-course") {
       return;
     }
-    loadCourseFolders(selectedCourseId);
+    if (usesFolderQuizzes) {
+      loadCourseFolders(selectedCourseId);
+    } else {
+      setCourseFolders([]);
+    }
   }, [viewMode, selectedCourseId]);
 
   useEffect(() => {
@@ -339,6 +347,8 @@ export default function App() {
 
   const is261Math10b2 = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
   const is261Fren20b1 = (selectedCourse?.id || selectedCourseId) === "261fren-20b-1";
+  const adminUsesFolderQuizzes = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
+  const usesFolderQuizzes = selectedCourseId === "261math-10b-2";
 
   const courseFlows = useMemo(() => {
     if (!selectedCourseId) {
@@ -726,7 +736,7 @@ export default function App() {
         adminToken,
         is261Math10b2 ? "" : adminTopic,
         courseId,
-        adminFolderId
+        adminUsesFolderQuizzes ? adminFolderId : null
       );
       setAdminSpec(data.spec);
       setAdminSpecId(data.spec_id);
@@ -1500,109 +1510,111 @@ export default function App() {
 
             {adminTab === "quizzes" && (
               <div className="admin-panel-stack">
-                <div className="admin-panel-card">
-                  <div className="admin-panel-header">
-                    <div className="admin-panel-title">Quiz Folders</div>
-                  </div>
-                  <div className="admin-panel-body">
-                    <div className="folder-create-row">
-                      <input
-                        className="form-input"
-                        type="text"
-                        value={adminNewFolderName}
-                        onChange={(event) => setAdminNewFolderName(event.target.value)}
-                        placeholder="New folder name"
-                      />
-                      <button
-                        className="button-primary"
-                        type="button"
-                        onClick={handleAdminCreateFolder}
-                      >
-                        Add folder
-                      </button>
+                {adminUsesFolderQuizzes && (
+                  <div className="admin-panel-card">
+                    <div className="admin-panel-header">
+                      <div className="admin-panel-title">Quiz Folders</div>
                     </div>
-                    {adminFolderStatus && (
-                      <div className="admin-status">{adminFolderStatus}</div>
-                    )}
-                    {adminFolders.length === 0 ? (
-                      <div className="admin-empty">No folders created yet.</div>
-                    ) : (
-                      <div className="folder-list">
-                        {adminFolders.map((folder) => {
-                          const renameValue =
-                            adminFolderRenames[folder.id] ?? folder.name;
-                          const isDefault = folder.name === "Default";
-                          return (
-                            <div key={folder.id} className="folder-card">
-                              <div className="folder-card-header">
-                                <input
-                                  className="form-input"
-                                  type="text"
-                                  value={renameValue}
-                                  onChange={(event) =>
-                                    setAdminFolderRenames((prev) => ({
-                                      ...prev,
-                                      [folder.id]: event.target.value
-                                    }))
-                                  }
-                                />
-                                <div className="folder-card-actions">
-                                  <button
-                                    className="button-secondary"
-                                    type="button"
-                                    onClick={() => handleAdminRenameFolder(folder.id)}
-                                  >
-                                    Rename
-                                  </button>
-                                  {!isDefault && (
+                    <div className="admin-panel-body">
+                      <div className="folder-create-row">
+                        <input
+                          className="form-input"
+                          type="text"
+                          value={adminNewFolderName}
+                          onChange={(event) => setAdminNewFolderName(event.target.value)}
+                          placeholder="New folder name"
+                        />
+                        <button
+                          className="button-primary"
+                          type="button"
+                          onClick={handleAdminCreateFolder}
+                        >
+                          Add folder
+                        </button>
+                      </div>
+                      {adminFolderStatus && (
+                        <div className="admin-status">{adminFolderStatus}</div>
+                      )}
+                      {adminFolders.length === 0 ? (
+                        <div className="admin-empty">No folders created yet.</div>
+                      ) : (
+                        <div className="folder-list">
+                          {adminFolders.map((folder) => {
+                            const renameValue =
+                              adminFolderRenames[folder.id] ?? folder.name;
+                            const isDefault = folder.name === "Default";
+                            return (
+                              <div key={folder.id} className="folder-card">
+                                <div className="folder-card-header">
+                                  <input
+                                    className="form-input"
+                                    type="text"
+                                    value={renameValue}
+                                    onChange={(event) =>
+                                      setAdminFolderRenames((prev) => ({
+                                        ...prev,
+                                        [folder.id]: event.target.value
+                                      }))
+                                    }
+                                  />
+                                  <div className="folder-card-actions">
                                     <button
-                                      className="button-ghost"
+                                      className="button-secondary"
                                       type="button"
-                                      onClick={() => handleAdminDeleteFolder(folder.id)}
+                                      onClick={() => handleAdminRenameFolder(folder.id)}
                                     >
-                                      Delete
+                                      Rename
                                     </button>
+                                    {!isDefault && (
+                                      <button
+                                        className="button-ghost"
+                                        type="button"
+                                        onClick={() => handleAdminDeleteFolder(folder.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="folder-card-body">
+                                  {folder.quizzes.length === 0 ? (
+                                    <div className="admin-empty">
+                                      No quizzes in this folder.
+                                    </div>
+                                  ) : (
+                                    folder.quizzes.map((quiz) => (
+                                      <div key={quiz.id} className="folder-quiz-row">
+                                        <div className="quiz-title">
+                                          {quiz.title || quiz.id}
+                                        </div>
+                                        <select
+                                          className="form-select"
+                                          value={folder.id}
+                                          onChange={(event) =>
+                                            handleAdminMoveQuiz(
+                                              quiz.id,
+                                              event.target.value
+                                            )
+                                          }
+                                        >
+                                          {adminFolderOptions.map((option) => (
+                                            <option key={option.id} value={option.id}>
+                                              {option.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    ))
                                   )}
                                 </div>
                               </div>
-                              <div className="folder-card-body">
-                                {folder.quizzes.length === 0 ? (
-                                  <div className="admin-empty">
-                                    No quizzes in this folder.
-                                  </div>
-                                ) : (
-                                  folder.quizzes.map((quiz) => (
-                                    <div key={quiz.id} className="folder-quiz-row">
-                                      <div className="quiz-title">
-                                        {quiz.title || quiz.id}
-                                      </div>
-                                      <select
-                                        className="form-select"
-                                        value={folder.id}
-                                        onChange={(event) =>
-                                          handleAdminMoveQuiz(
-                                            quiz.id,
-                                            event.target.value
-                                          )
-                                        }
-                                      >
-                                        {adminFolderOptions.map((option) => (
-                                          <option key={option.id} value={option.id}>
-                                            {option.name}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
                 <div className="admin-panel-card">
                   <div className="admin-panel-header">
                     <div className="admin-panel-title">Published Quizzes</div>
@@ -1671,20 +1683,22 @@ export default function App() {
                     ) : (
                       <div className="admin-block">
                         <form className="admin-form" onSubmit={handleAdminGenerateSpec}>
-                          <div className="form-field">
-                            <label className="form-label">Folder</label>
-                            <select
-                              className="form-select"
-                              value={adminFolderId}
-                              onChange={(event) => setAdminFolderId(event.target.value)}
-                            >
-                              {adminFolders.map((folder) => (
-                                <option key={folder.id} value={folder.id}>
-                                  {folder.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          {adminUsesFolderQuizzes && (
+                            <div className="form-field">
+                              <label className="form-label">Folder</label>
+                              <select
+                                className="form-select"
+                                value={adminFolderId}
+                                onChange={(event) => setAdminFolderId(event.target.value)}
+                              >
+                                {adminFolders.map((folder) => (
+                                  <option key={folder.id} value={folder.id}>
+                                    {folder.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           {!is261Math10b2 && (
                             <div className="form-field">
                               <label className="form-label">Topic</label>
