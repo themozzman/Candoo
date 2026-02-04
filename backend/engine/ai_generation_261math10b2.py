@@ -230,8 +230,8 @@ def _repair_f7_flow(flow: dict) -> None:
     if not isinstance(steps, dict) or not steps:
         raise AIFlowError("Flow steps must be an object")
     f7_type_text = {
-        "identify_ud_mc": "Identify and set u and du for the following integral",
-        "identify_ud_sa": "Identify and set u and du for the following integral",
+        "identify_ud_mc": "Identify and set u and du for the following integral. Format: u = ..., du = ...",
+        "identify_ud_sa": "Identify and set u and du for the following integral. Format: u = ..., du = ...",
         "compute_definite": "Compute the following integral",
         "compute_indefinite": "Compute the following integral",
     }
@@ -250,6 +250,11 @@ def _repair_f7_flow(flow: dict) -> None:
             step["f7_type"] = f7_type
         if f7_type in f7_type_text:
             step["prompt_text"] = f7_type_text[f7_type]
+        prompt_math = step.get("prompt_math")
+        if isinstance(prompt_math, str) and prompt_math.startswith("\\int"):
+            prompt_math = prompt_math.replace("\n", " ").strip()
+            prompt_math = " ".join(prompt_math.split())
+            step["prompt_math"] = prompt_math
             remaining.discard(f7_type)
         step_type = step.get("type")
         if step_type == "MC":
