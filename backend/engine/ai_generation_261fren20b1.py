@@ -88,5 +88,39 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         raise AIFlowError("Flow response must be a JSON object")
     flow["schemaVersion"] = 1
     flow["id"] = flow_id
+    _repair_null_next(flow)
+    _ensure_terminal_step(flow)
     base._shuffle_mc_options(flow)
     return flow
+
+
+def _repair_null_next(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict):
+        return
+    for step in steps.values():
+        if not isinstance(step, dict):
+            continue
+        next_branch = step.get("next")
+        if not isinstance(next_branch, dict):
+            continue
+        for key in ("correct", "wrong", "skip"):
+            target = next_branch.get(key)
+            if isinstance(target, str) and target.strip().lower() in {"null", "none"}:
+                next_branch[key] = None
+
+
+def _ensure_terminal_step(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        return
+    for step in steps.values():
+        next_branch = step.get("next")
+        if isinstance(next_branch, dict) and all(
+            next_branch.get(key) is None for key in ("correct", "wrong", "skip")
+        ):
+            return
+    step_ids = list(steps.keys())
+    last_step = steps.get(step_ids[-1])
+    if isinstance(last_step, dict):
+        last_step["next"] = {"correct": None, "wrong": None, "skip": None}
