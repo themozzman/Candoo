@@ -14,6 +14,7 @@ from engine.analytics import (
     get_course,
     get_teacher_report,
     init_db,
+    list_quiz_folders,
     delete_user,
     list_approved_flows,
     list_courses,
@@ -21,6 +22,10 @@ from engine.analytics import (
     list_course_students,
     list_users,
     mark_ai_flow_approved,
+    move_quiz_to_folder,
+    create_quiz_folder,
+    delete_quiz_folder,
+    rename_quiz_folder,
     reset_auth_data,
     reset_flow_data,
     reset_learning_data,
@@ -210,6 +215,37 @@ class AdminCourseStudentsSetRequest(BaseModel):
     student_ids: list[int]
 
 
+class AdminQuizFoldersRequest(BaseModel):
+    token: str
+    course_id: str
+
+
+class AdminQuizFolderCreateRequest(BaseModel):
+    token: str
+    course_id: str
+    name: str
+
+
+class AdminQuizFolderRenameRequest(BaseModel):
+    token: str
+    course_id: str
+    folder_id: str
+    name: str
+
+
+class AdminQuizFolderDeleteRequest(BaseModel):
+    token: str
+    course_id: str
+    folder_id: str
+
+
+class AdminQuizFolderMoveRequest(BaseModel):
+    token: str
+    course_id: str
+    flow_id: str
+    folder_id: str
+
+
 class SessionAnalysisRequest(BaseModel):
     step_id: str
 
@@ -324,6 +360,15 @@ def list_courses_endpoint(user: dict = Depends(get_current_user)) -> list[dict]:
     if is_admin_user(user):
         return list_courses(DB_PATH)
     return list_courses_for_user(DB_PATH, user["id"])
+
+
+@app.get("/courses/{course_id}/folders")
+def list_course_folders(course_id: str, user: dict = Depends(get_current_user)) -> dict:
+    if not is_admin_user(user):
+        if not user_has_course(DB_PATH, user["id"], course_id):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
+    folders = list_quiz_folders(DB_PATH, course_id)
+    return {"folders": folders}
 
 
 @app.post("/session/start")
@@ -746,3 +791,64 @@ def admin_course_students_set(
     set_course_students(DB_PATH, payload.course_id, payload.student_ids)
     students = list_course_students(DB_PATH, payload.course_id)
     return {"course": course, "students": _with_admin_flag(students)}
+
+
+@app.post("/admin/quiz-folders/list")
+def admin_quiz_folders_list(
+    payload: AdminQuizFoldersRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    course = get_course(DB_PATH, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    folders = list_quiz_folders(DB_PATH, payload.course_id)
+    return {"course": course, "folders": folders}
+
+
+@app.post("/admin/quiz-folders/create")
+def admin_quiz_folders_create(
+    payload: AdminQuizFolderCreateRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Folder name is required")
+    course = get_course(DB_PATH, payload.course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    folder = create_quiz_folder(DB_PATH, payload.course_id, name)
+    folders = list_quiz_folders(DB_PATH, payload.course_id)
+    return {"folder": folder, "folders": folders}
+
+
+@app.post("/admin/quiz-folders/rename")
+def admin_quiz_folders_rename(
+    payload: AdminQuizFolderRenameRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Folder name is required")
+    rename_quiz_folder(DB_PATH, payload.course_id, payload.folder_id, name)
+    folders = list_quiz_folders(DB_PATH, payload.course_id)
+    return {"folders": folders}
+
+
+@app.post("/admin/quiz-folders/delete")
+def admin_quiz_folders_delete(
+    payload: AdminQuizFolderDeleteRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    delete_quiz_folder(DB_PATH, payload.course_id, payload.folder_id)
+    folders = list_quiz_folders(DB_PATH, payload.course_id)
+    return {"folders": folders}
+
+
+@app.post("/admin/quiz-folders/move")
+def admin_quiz_folders_move(
+    payload: AdminQuizFolderMoveRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    move_quiz_to_folder(DB_PATH, payload.course_id, payload.flow_id, payload.folder_id)
+    folders = list_quiz_folders(DB_PATH, payload.course_id)
+    return {"folders": folders}

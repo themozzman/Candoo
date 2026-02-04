@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from .db import connect_db, set_row_factory
 
@@ -173,6 +174,38 @@ def init_db(db_path: str) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quiz_folders (
+                id TEXT PRIMARY KEY,
+                course_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS quiz_folder_items (
+                flow_id TEXT PRIMARY KEY,
+                folder_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(folder_id) REFERENCES quiz_folders(id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_quiz_folders_course_name
+            ON quiz_folders(course_id, name)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_quiz_folder_items_folder
+            ON quiz_folder_items(folder_id)
+            """
+        )
         _ensure_users_email_column(conn)
         _ensure_course_tags_column(conn)
         _ensure_courses(conn)
@@ -291,6 +324,53 @@ def _ensure_course_tag_values(conn: "DBConnection") -> None:
     )
 
 
+def _ensure_default_quiz_folder(conn: "DBConnection", course_id: str) -> str:
+    set_row_factory(conn)
+    row = conn.execute(
+        """
+        SELECT id FROM quiz_folders WHERE course_id = ? AND name = ?
+        """,
+        (course_id, "Default"),
+    ).fetchone()
+    if row:
+        default_id = row["id"]
+    else:
+        default_id = f"folder-{course_id}-{uuid4()}"
+        conn.execute(
+            """
+            INSERT INTO quiz_folders (id, course_id, name, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (default_id, course_id, "Default", _now_iso()),
+        )
+
+    assigned = {
+        row["flow_id"]
+        for row in conn.execute("SELECT flow_id FROM quiz_folder_items").fetchall()
+    }
+    rows = conn.execute(
+        """
+        SELECT id FROM ai_flows
+        WHERE course_id = ? AND status = ?
+        """,
+        (course_id, "flow_approved"),
+    ).fetchall()
+    missing = [
+        (row["id"], default_id, _now_iso())
+        for row in rows
+        if row["id"] not in assigned
+    ]
+    if missing:
+        conn.executemany(
+            """
+            INSERT INTO quiz_folder_items (flow_id, folder_id, created_at)
+            VALUES (?, ?, ?)
+            """,
+            missing,
+        )
+    return default_id
+
+
 def _parse_course_row(row: dict) -> dict:
     data = dict(row)
     tags_raw = data.get("tags")
@@ -335,6 +415,149 @@ def list_courses_for_user(db_path: str, user_id: int) -> list[dict]:
             (user_id,),
         ).fetchall()
         return [_parse_course_row(dict(row)) for row in rows]
+    finally:
+        conn.close()
+
+
+def list_quiz_folders(db_path: str, course_id: str) -> list[dict]:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        _ensure_default_quiz_folder(conn, course_id)
+        folders = conn.execute(
+            """
+            SELECT id, name
+            FROM quiz_folders
+            WHERE course_id = ?
+            ORDER BY name
+            """,
+            (course_id,),
+        ).fetchall()
+        folder_ids = [row["id"] for row in folders]
+        if not folder_ids:
+            return []
+
+        items = conn.execute(
+            """
+            SELECT qfi.flow_id, qfi.folder_id, af.flow_json
+            FROM quiz_folder_items qfi
+            JOIN ai_flows af ON af.id = qfi.flow_id
+            WHERE af.status = ? AND af.course_id = ?
+            """,
+            ("flow_approved", course_id),
+        ).fetchall()
+        flows_by_folder = {folder_id: [] for folder_id in folder_ids}
+        for row in items:
+            flow = json.loads(row["flow_json"])
+            flows_by_folder.setdefault(row["folder_id"], []).append(
+                {
+                    "id": row["flow_id"],
+                    "title": flow.get("title"),
+                    "topic": flow.get("topic"),
+                    "statement": flow.get("statement"),
+                }
+            )
+        result = []
+        for folder in folders:
+            result.append(
+                {
+                    "id": folder["id"],
+                    "name": folder["name"],
+                    "quizzes": flows_by_folder.get(folder["id"], []),
+                }
+            )
+        return result
+    finally:
+        conn.close()
+
+
+def create_quiz_folder(db_path: str, course_id: str, name: str) -> dict:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        folder_id = f"folder-{course_id}-{uuid4()}"
+        conn.execute(
+            """
+            INSERT INTO quiz_folders (id, course_id, name, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (folder_id, course_id, name, _now_iso()),
+        )
+        conn.commit()
+        return {"id": folder_id, "name": name}
+    finally:
+        conn.close()
+
+
+def rename_quiz_folder(db_path: str, course_id: str, folder_id: str, name: str) -> None:
+    conn = connect_db(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE quiz_folders
+            SET name = ?
+            WHERE id = ? AND course_id = ?
+            """,
+            (name, folder_id, course_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_quiz_folder(db_path: str, course_id: str, folder_id: str) -> None:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        default_id = _ensure_default_quiz_folder(conn, course_id)
+        if folder_id == default_id:
+            return
+        conn.execute(
+            """
+            UPDATE quiz_folder_items
+            SET folder_id = ?
+            WHERE folder_id = ?
+            """,
+            (default_id, folder_id),
+        )
+        conn.execute("DELETE FROM quiz_folders WHERE id = ?", (folder_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def move_quiz_to_folder(
+    db_path: str, course_id: str, flow_id: str, folder_id: str
+) -> None:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        folder_row = conn.execute(
+            """
+            SELECT id FROM quiz_folders WHERE id = ? AND course_id = ?
+            """,
+            (folder_id, course_id),
+        ).fetchone()
+        if not folder_row:
+            return
+        flow_row = conn.execute(
+            """
+            SELECT id FROM ai_flows
+            WHERE id = ? AND course_id = ? AND status = ?
+            """,
+            (flow_id, course_id, "flow_approved"),
+        ).fetchone()
+        if not flow_row:
+            return
+        conn.execute(
+            """
+            INSERT INTO quiz_folder_items (flow_id, folder_id, created_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(flow_id) DO UPDATE SET folder_id = excluded.folder_id
+            """,
+            (flow_id, folder_id, _now_iso()),
+        )
+        conn.commit()
     finally:
         conn.close()
 

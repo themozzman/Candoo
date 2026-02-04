@@ -29,6 +29,10 @@ export function fetchCourses() {
   return request("/courses");
 }
 
+export function fetchCourseFolders(courseId) {
+  return request(`/courses/${encodeURIComponent(courseId)}/folders`);
+}
+
 export function startSession(flowId, studentId) {
   return request("/session/start", {
     method: "POST",
@@ -138,6 +142,41 @@ export function adminCourseStudents(token, courseId) {
   return request("/admin/courses/students", {
     method: "POST",
     body: JSON.stringify({ token, course_id: courseId })
+  });
+}
+
+export function adminListQuizFolders(token, courseId) {
+  return request("/admin/quiz-folders/list", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId })
+  });
+}
+
+export function adminCreateQuizFolder(token, courseId, name) {
+  return request("/admin/quiz-folders/create", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId, name })
+  });
+}
+
+export function adminRenameQuizFolder(token, courseId, folderId, name) {
+  return request("/admin/quiz-folders/rename", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId, folder_id: folderId, name })
+  });
+}
+
+export function adminDeleteQuizFolder(token, courseId, folderId) {
+  return request("/admin/quiz-folders/delete", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId, folder_id: folderId })
+  });
+}
+
+export function adminMoveQuizFolder(token, courseId, flowId, folderId) {
+  return request("/admin/quiz-folders/move", {
+    method: "POST",
+    body: JSON.stringify({ token, course_id: courseId, flow_id: flowId, folder_id: folderId })
   });
 }
 

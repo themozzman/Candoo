@@ -4,15 +4,21 @@ import katex from "katex";
 import {
   adminApproveFlow,
   adminApproveSpec,
+  adminCreateQuizFolder,
   adminCourseStudents,
   adminCreateUsers,
   adminDeleteUser,
   adminGenerateSpec,
+  adminDeleteQuizFolder,
+  adminListQuizFolders,
   adminListUsers,
+  adminMoveQuizFolder,
   adminPreviewFlow,
+  adminRenameQuizFolder,
   adminSetCourseStudents,
   advanceSession,
   analyzeAttempts,
+  fetchCourseFolders,
   fetchCourses,
   fetchFlows,
   fetchMe,
@@ -52,6 +58,10 @@ export default function App() {
   const [adminFlowId, setAdminFlowId] = useState("");
   const [adminFlowText, setAdminFlowText] = useState("");
   const [adminStatus, setAdminStatus] = useState("");
+  const [adminFolders, setAdminFolders] = useState([]);
+  const [adminFolderStatus, setAdminFolderStatus] = useState("");
+  const [adminNewFolderName, setAdminNewFolderName] = useState("");
+  const [adminFolderRenames, setAdminFolderRenames] = useState({});
   const [adminChecklist, setAdminChecklist] = useState([]);
   const [adminUsers, setAdminUsers] = useState([]);
   const [adminCourseRosterId, setAdminCourseRosterId] = useState("");
@@ -69,6 +79,9 @@ export default function App() {
   const [reportStatus, setReportStatus] = useState("");
   const [reportMeta, setReportMeta] = useState(null);
   const [courseStudentCounts, setCourseStudentCounts] = useState({});
+  const [courseFolders, setCourseFolders] = useState([]);
+  const [courseFolderStatus, setCourseFolderStatus] = useState("");
+  const [openFolderIds, setOpenFolderIds] = useState({});
   const [authMode, setAuthMode] = useState("login");
   const [authUsername, setAuthUsername] = useState("");
   const [authEmail, setAuthEmail] = useState("");
@@ -138,6 +151,35 @@ export default function App() {
       .catch((err) => setError(err.message));
   };
 
+  const loadCourseFolders = (courseId) => {
+    if (!courseId) {
+      setCourseFolders([]);
+      return;
+    }
+    fetchCourseFolders(courseId)
+      .then((data) => {
+        setCourseFolders(data.folders || []);
+        setCourseFolderStatus("");
+      })
+      .catch((err) => {
+        setCourseFolderStatus(err.message);
+        setCourseFolders([]);
+      });
+  };
+
+  const loadAdminFolders = (courseId) => {
+    if (!courseId) {
+      setAdminFolders([]);
+      return;
+    }
+    adminListQuizFolders(adminToken || "", courseId)
+      .then((data) => {
+        setAdminFolders(data.folders || []);
+        setAdminFolderStatus("");
+      })
+      .catch((err) => setAdminFolderStatus(err.message));
+  };
+
   const stopFlowsPolling = () => {
     if (flowsPollRef.current) {
       clearInterval(flowsPollRef.current);
@@ -169,6 +211,33 @@ export default function App() {
     }, 8000);
     return () => stopFlowsPolling();
   }, [isAdmin, viewMode, adminTab]);
+
+  useEffect(() => {
+    if (!isAdmin || viewMode !== "admin-course" || adminTab !== "view") {
+      return;
+    }
+    const courseId = adminCourseRosterId || selectedCourseId;
+    loadAdminFolders(courseId);
+  }, [isAdmin, viewMode, adminTab, adminCourseRosterId, selectedCourseId]);
+
+  useEffect(() => {
+    if (viewMode !== "student-course") {
+      return;
+    }
+    loadCourseFolders(selectedCourseId);
+  }, [viewMode, selectedCourseId]);
+
+  useEffect(() => {
+    if (!courseFolders.length) {
+      setOpenFolderIds({});
+      return;
+    }
+    const defaults = {};
+    courseFolders.forEach((folder, index) => {
+      defaults[folder.id] = index === 0;
+    });
+    setOpenFolderIds(defaults);
+  }, [courseFolders]);
 
   useEffect(() => {
     fetchMe()
@@ -278,6 +347,11 @@ export default function App() {
     });
   }, [flows, selectedCourseId, selectedCourse]);
 
+  const adminFolderOptions = useMemo(
+    () => adminFolders.map((folder) => ({ id: folder.id, name: folder.name })),
+    [adminFolders]
+  );
+
   const getCourseFlows = (courseId) => {
     if (!courseId) {
       return [];
@@ -343,6 +417,27 @@ export default function App() {
       return { flow, ...(meta[index] || fallback) };
     });
   }, [courseFlows]);
+
+  const studentFolderGroups = useMemo(() => {
+    if (courseFolders.length) {
+      return courseFolders;
+    }
+    if (!courseFlows.length) {
+      return [];
+    }
+    return [
+      {
+        id: "all-quizzes",
+        name: "All Quizzes",
+        quizzes: courseFlows.map((flow) => ({
+          id: flow.id,
+          title: flow.title,
+          topic: flow.topic,
+          statement: flow.statement
+        }))
+      }
+    ];
+  }, [courseFolders, courseFlows]);
 
   const resetSessionView = () => {
     setSessionId(null);
@@ -633,6 +728,78 @@ export default function App() {
       setAdminStatus(err.message);
       updateChecklist({ spec: "error" });
     }
+  };
+
+  const handleAdminCreateFolder = async () => {
+    setAdminFolderStatus("");
+    const courseId = adminCourseRosterId || selectedCourseId;
+    const name = adminNewFolderName.trim();
+    if (!name) {
+      setAdminFolderStatus("Folder name is required.");
+      return;
+    }
+    try {
+      const data = await adminCreateQuizFolder(adminToken || "", courseId, name);
+      setAdminFolders(data.folders || []);
+      setAdminNewFolderName("");
+    } catch (err) {
+      setAdminFolderStatus(err.message);
+    }
+  };
+
+  const handleAdminRenameFolder = async (folderId) => {
+    setAdminFolderStatus("");
+    const courseId = adminCourseRosterId || selectedCourseId;
+    const nextName = (adminFolderRenames[folderId] || "").trim();
+    if (!nextName) {
+      setAdminFolderStatus("Folder name is required.");
+      return;
+    }
+    try {
+      const data = await adminRenameQuizFolder(
+        adminToken || "",
+        courseId,
+        folderId,
+        nextName
+      );
+      setAdminFolders(data.folders || []);
+    } catch (err) {
+      setAdminFolderStatus(err.message);
+    }
+  };
+
+  const handleAdminDeleteFolder = async (folderId) => {
+    setAdminFolderStatus("");
+    const courseId = adminCourseRosterId || selectedCourseId;
+    try {
+      const data = await adminDeleteQuizFolder(adminToken || "", courseId, folderId);
+      setAdminFolders(data.folders || []);
+    } catch (err) {
+      setAdminFolderStatus(err.message);
+    }
+  };
+
+  const handleAdminMoveQuiz = async (flowId, folderId) => {
+    setAdminFolderStatus("");
+    const courseId = adminCourseRosterId || selectedCourseId;
+    try {
+      const data = await adminMoveQuizFolder(
+        adminToken || "",
+        courseId,
+        flowId,
+        folderId
+      );
+      setAdminFolders(data.folders || []);
+    } catch (err) {
+      setAdminFolderStatus(err.message);
+    }
+  };
+
+  const toggleFolderOpen = (folderId) => {
+    setOpenFolderIds((prev) => ({
+      ...prev,
+      [folderId]: !prev[folderId]
+    }));
   };
 
   const handleAdminApproveSpec = async () => {
@@ -1123,6 +1290,15 @@ export default function App() {
               >
                 Quizzes
               </button>
+              <button
+                className={
+                  adminTab === "view" ? "switcher-button active" : "switcher-button"
+                }
+                type="button"
+                onClick={() => setAdminTab("view")}
+              >
+                View
+              </button>
             </div>
 
             {adminTab === "students" && (
@@ -1546,6 +1722,114 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {adminTab === "view" && (
+              <div className="admin-panel-stack">
+                <div className="admin-panel-card">
+                  <div className="admin-panel-header">
+                    <div className="admin-panel-title">Quiz Folders</div>
+                  </div>
+                  <div className="admin-panel-body">
+                    <div className="folder-create-row">
+                      <input
+                        className="form-input"
+                        type="text"
+                        value={adminNewFolderName}
+                        onChange={(event) => setAdminNewFolderName(event.target.value)}
+                        placeholder="New folder name"
+                      />
+                      <button
+                        className="button-primary"
+                        type="button"
+                        onClick={handleAdminCreateFolder}
+                      >
+                        Add folder
+                      </button>
+                    </div>
+                    {adminFolderStatus && (
+                      <div className="admin-status">{adminFolderStatus}</div>
+                    )}
+                    {adminFolders.length === 0 ? (
+                      <div className="admin-empty">No folders created yet.</div>
+                    ) : (
+                      <div className="folder-list">
+                        {adminFolders.map((folder) => {
+                          const renameValue =
+                            adminFolderRenames[folder.id] ?? folder.name;
+                          const isDefault = folder.name === "Default";
+                          return (
+                            <div key={folder.id} className="folder-card">
+                              <div className="folder-card-header">
+                                <input
+                                  className="form-input"
+                                  type="text"
+                                  value={renameValue}
+                                  onChange={(event) =>
+                                    setAdminFolderRenames((prev) => ({
+                                      ...prev,
+                                      [folder.id]: event.target.value
+                                    }))
+                                  }
+                                />
+                                <div className="folder-card-actions">
+                                  <button
+                                    className="button-secondary"
+                                    type="button"
+                                    onClick={() => handleAdminRenameFolder(folder.id)}
+                                  >
+                                    Rename
+                                  </button>
+                                  {!isDefault && (
+                                    <button
+                                      className="button-ghost"
+                                      type="button"
+                                      onClick={() => handleAdminDeleteFolder(folder.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="folder-card-body">
+                                {folder.quizzes.length === 0 ? (
+                                  <div className="admin-empty">
+                                    No quizzes in this folder.
+                                  </div>
+                                ) : (
+                                  folder.quizzes.map((quiz) => (
+                                    <div key={quiz.id} className="folder-quiz-row">
+                                      <div className="quiz-title">
+                                        {quiz.title || quiz.id}
+                                      </div>
+                                      <select
+                                        className="form-select"
+                                        value={folder.id}
+                                        onChange={(event) =>
+                                          handleAdminMoveQuiz(
+                                            quiz.id,
+                                            event.target.value
+                                          )
+                                        }
+                                      >
+                                        {adminFolderOptions.map((option) => (
+                                          <option key={option.id} value={option.id}>
+                                            {option.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
@@ -1571,47 +1855,75 @@ export default function App() {
             </div>
             <div className="course-subheader">Available Quizzes</div>
             {error && <div className="course-note">Error: {error}</div>}
-            <div className="student-quiz-list">
-              {studentQuizCards.length === 0 ? (
+            {courseFolderStatus && (
+              <div className="course-note">Folders: {courseFolderStatus}</div>
+            )}
+            <div className="folder-list">
+              {studentFolderGroups.length === 0 ? (
                 <div className="admin-empty">No quizzes available yet.</div>
               ) : (
-                studentQuizCards.map((quiz, index) => (
-                  <div key={quiz.flow.id} className="student-quiz-card">
-                    <div className="quiz-left">
-                      <div>
-                        <div className="quiz-title">{quiz.flow.title}</div>
-                        <div className="quiz-meta">
-                          <span>⏱ {quiz.duration} min</span>
-                          <span>•</span>
-                          <span>{quiz.questions} questions</span>
-                          <span>•</span>
-                          <span className={quiz.score ? "" : "quiz-due"}>
-                            Due {quiz.due}
-                          </span>
-                        </div>
+                studentFolderGroups.map((folder, folderIndex) => (
+                  <div key={folder.id} className="folder-section">
+                    <button
+                      className="folder-toggle"
+                      type="button"
+                      onClick={() => toggleFolderOpen(folder.id)}
+                    >
+                      <span>{folder.name}</span>
+                      <span className="folder-count">
+                        {folder.quizzes.length} quizzes
+                      </span>
+                    </button>
+                    {openFolderIds[folder.id] && (
+                      <div className="student-quiz-list folder-quiz-list">
+                        {folder.quizzes.map((quiz, index) => {
+                          const flow = quiz.flow || quiz;
+                          const fallback = {
+                            duration: 30 + index * 5,
+                            questions: 10 + index * 5,
+                            due: "Feb 15, 2026"
+                          };
+                          const meta = studentQuizCards[index] || fallback;
+                          return (
+                            <div key={flow.id} className="student-quiz-card">
+                              <div className="quiz-left">
+                                <div>
+                                  <div className="quiz-title">{flow.title}</div>
+                                  <div className="quiz-meta">
+                                    <span>⏱ {meta.duration} min</span>
+                                    <span>•</span>
+                                    <span>{meta.questions} questions</span>
+                                    <span>•</span>
+                                    <span className={meta.score ? "" : "quiz-due"}>
+                                      Due {meta.due}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="quiz-right">
+                                {meta.score ? (
+                                  <button
+                                    className="quiz-review"
+                                    type="button"
+                                    onClick={() => handleStudentStartQuiz(flow.id)}
+                                  >
+                                    Review
+                                  </button>
+                                ) : (
+                                  <button
+                                    className="quiz-start"
+                                    type="button"
+                                    onClick={() => handleStudentStartQuiz(flow.id)}
+                                  >
+                                    Start Quiz
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    </div>
-                    <div className="quiz-right">
-                      {quiz.score ? (
-                        <>
-                          <button
-                            className="quiz-review"
-                            type="button"
-                            onClick={() => handleStudentStartQuiz(quiz.flow.id)}
-                          >
-                            Review
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          className="quiz-start"
-                          type="button"
-                          onClick={() => handleStudentStartQuiz(quiz.flow.id)}
-                        >
-                          Start Quiz
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 ))
               )}

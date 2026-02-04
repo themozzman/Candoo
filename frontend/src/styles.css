@@ -758,6 +758,89 @@ body {
   max-width: 360px;
 }
 
+.folder-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.folder-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.folder-toggle {
+  width: 100%;
+  border: none;
+  background: #f8fafc;
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.folder-count {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.folder-quiz-list {
+  padding: 12px 16px 4px;
+}
+
+.folder-create-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.folder-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.folder-card-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.folder-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.folder-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.folder-quiz-row {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.folder-quiz-row:last-child {
+  border-bottom: none;
+}
+
 .page-toolbar {
   display: flex;
   align-items: center;
