@@ -192,7 +192,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             '  prompt_text: "Compute the following integral"\n'
             "  prompt_math: <integral only in LaTeX>\n\n"
             "MC OPTIONS:\n"
-            '- Each option must be a complete pair like "u = ...; du = ..." (English only in text).\n'
+            "- Each option must put the full u/du pair in option.math.\n"
+            "- option.text must be empty for MC u/du choices.\n"
             "- Do NOT use math symbols in prompt_text.\n"
             "- Use prompt_math for the integral only.\n\n"
             "ANSWER RULES:\n"
