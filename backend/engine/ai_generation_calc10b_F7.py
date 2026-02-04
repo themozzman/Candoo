@@ -35,20 +35,28 @@ F7_MATH_ONLY_INSTRUCTIONS = (
     '  "integral_for_u": "<latex integral>",\n'
     '  "u_expression": "<latex expression>",\n'
     '  "du_expression": "<latex expression>",\n'
-    '  "bounded_integral": "<latex integral with bounds>",\n'
-    '  "bounded_answer": "<latex numeric result>",\n'
-    '  "unbounded_integral": "<latex integral>",\n'
-    '  "unbounded_answer": "<latex antiderivative with + C>"\n'
+    '  "bounded_integral_a": "<latex integral with bounds>",\n'
+    '  "bounded_answer_a": "<latex numeric result>",\n'
+    '  "bounded_integral_b": "<latex integral with bounds>",\n'
+    '  "bounded_answer_b": "<latex numeric result>",\n'
+    '  "unbounded_integral_a": "<latex integral>",\n'
+    '  "unbounded_answer_a": "<latex antiderivative with + C>",\n'
+    '  "unbounded_integral_b": "<latex integral>",\n'
+    '  "unbounded_answer_b": "<latex antiderivative with + C>"\n'
     "}\n\n"
     "Rules:\n"
     "- Provide math only (no words like 'from', 'to', 'evaluate', etc.).\n"
     "- The u_expression must match the integral_for_u.\n"
     "- The du_expression must be the correct differential for u.\n"
-    "- bounded_integral must be different from integral_for_u.\n"
-    "- unbounded_integral must be different from integral_for_u.\n"
-    "- bounded_integral and unbounded_integral must be different from each other.\n"
-    "- bounded_answer must be a number.\n"
-    "- unbounded_answer must include + C.\n"
+    "- All bounded/unbounded integrals must be different from integral_for_u.\n"
+    "- bounded_integral_a, bounded_integral_b, unbounded_integral_a, unbounded_integral_b must all be different from each other.\n"
+    "- bounded_answer_a and bounded_answer_b must be numbers.\n"
+    "- unbounded_answer_a and unbounded_answer_b must include + C.\n"
+    "- Use distinct substitution families across the four integrals:\n"
+    "  * trig substitution (sin/cos/tan/sec^2 with composite)\n"
+    "  * root/chain (sqrt or cube root with derivative factor)\n"
+    "  * exponential + root ratio (e^{sqrt(x)} / sqrt(x) or similar)\n"
+    "  * rational/power (x^m / (a + x^n) or similar)\n"
 )
 
 
@@ -108,7 +116,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             return []
         return [str(value)]
 
-    step_ids = ["step1", "step2", "step3", "step4"]
+    step_ids = ["step1", "step2", "step3", "step4", "step5", "step6"]
     flow = {
         "schemaVersion": 1,
         "id": flow_id,
@@ -151,10 +159,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
                 "id": "step3",
                 "type": "SA",
                 "prompt_text": "Compute the following integral.",
-                "prompt_math": math_payload.get("bounded_integral", ""),
+                "prompt_math": math_payload.get("bounded_integral_a", ""),
                 "answer": {
                     "kind": "normalized_set",
-                    "values": _values(math_payload.get("bounded_answer", "")),
+                    "values": _values(math_payload.get("bounded_answer_a", "")),
                     "normalize": ["trim", "lowercase", "remove_spaces"],
                 },
                 "feedback": {"wrongHint": "", "explanation": ""},
@@ -166,10 +174,40 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
                 "id": "step4",
                 "type": "SA",
                 "prompt_text": "Compute the following integral.",
-                "prompt_math": math_payload.get("unbounded_integral", ""),
+                "prompt_math": math_payload.get("unbounded_integral_a", ""),
                 "answer": {
                     "kind": "normalized_set",
-                    "values": _values(math_payload.get("unbounded_answer", "")),
+                    "values": _values(math_payload.get("unbounded_answer_a", "")),
+                    "normalize": ["trim", "lowercase", "remove_spaces"],
+                },
+                "feedback": {"wrongHint": "", "explanation": ""},
+                "solution": {"steps": []},
+                "attemptPolicy": {"revealAfter": 2, "allowSkip": True},
+                "next": {"correct": "step5", "wrong": "step5", "skip": "step5"},
+            },
+            "step5": {
+                "id": "step5",
+                "type": "SA",
+                "prompt_text": "Compute the following integral.",
+                "prompt_math": math_payload.get("bounded_integral_b", ""),
+                "answer": {
+                    "kind": "normalized_set",
+                    "values": _values(math_payload.get("bounded_answer_b", "")),
+                    "normalize": ["trim", "lowercase", "remove_spaces"],
+                },
+                "feedback": {"wrongHint": "", "explanation": ""},
+                "solution": {"steps": []},
+                "attemptPolicy": {"revealAfter": 2, "allowSkip": True},
+                "next": {"correct": "step6", "wrong": "step6", "skip": "step6"},
+            },
+            "step6": {
+                "id": "step6",
+                "type": "SA",
+                "prompt_text": "Compute the following integral.",
+                "prompt_math": math_payload.get("unbounded_integral_b", ""),
+                "answer": {
+                    "kind": "normalized_set",
+                    "values": _values(math_payload.get("unbounded_answer_b", "")),
                     "normalize": ["trim", "lowercase", "remove_spaces"],
                 },
                 "feedback": {"wrongHint": "", "explanation": ""},
