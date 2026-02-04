@@ -1,6 +1,7 @@
 import json
 
 from . import ai_generation_calc10b as base
+from . import ai_generation_calc10b_F7 as f7_generator
 
 
 AIFlowError = base.AIFlowError
@@ -44,6 +45,8 @@ def generate_spec(topic: str, course: dict) -> dict:
     client = base._client()
     course_tags = base._normalize_tags(course.get("tags"))
     folder_name = course.get("folder_name") or "G6"
+    if folder_name == "F7":
+        return f7_generator.generate_spec(topic, course)
     rubric = RUBRICS_BY_FOLDER.get(folder_name)
     if rubric is None and folder_name != "F7":
         raise AIFlowError(
@@ -88,6 +91,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     course_tags = base._normalize_tags(spec.get("course_tags") or spec.get("tags"))
     is_math_course = "math" in course_tags
     folder_name = spec.get("folder_name") or "G6"
+    if folder_name == "F7":
+        return f7_generator.generate_flow(spec, flow_id)
     if folder_name == "G6":
         prompt = (
             "You are generating a learning flow JSON for a calculus quiz.\n"
