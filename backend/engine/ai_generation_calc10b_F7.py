@@ -35,6 +35,8 @@ F7_MATH_ONLY_INSTRUCTIONS = (
     '  "integral_for_u": "<latex integral>",\n'
     '  "u_expression": "<latex expression>",\n'
     '  "du_expression": "<latex expression>",\n'
+    '  "u_for_du": "<latex expression>",\n'
+    '  "du_for_du": "<latex expression>",\n'
     '  "bounded_integral_a": "<latex integral with bounds>",\n'
     '  "bounded_answer_a": "<latex numeric result>",\n'
     '  "bounded_integral_b": "<latex integral with bounds>",\n'
@@ -48,6 +50,8 @@ F7_MATH_ONLY_INSTRUCTIONS = (
     "- Provide math only (no words like 'from', 'to', 'evaluate', etc.).\n"
     "- The u_expression must match the integral_for_u.\n"
     "- The du_expression must be the correct differential for u.\n"
+    "- The u_for_du must be different from u_expression and integral_for_u.\n"
+    "- The du_for_du must be the correct differential for u_for_du.\n"
     "- All bounded/unbounded integrals must be different from integral_for_u.\n"
     "- bounded_integral_a, bounded_integral_b, unbounded_integral_a, unbounded_integral_b must all be different from each other.\n"
     "- bounded_answer_a and bounded_answer_b must be numbers.\n"
@@ -144,13 +148,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
                 "id": "step2",
                 "type": "SA",
                 "prompt_text": "Identify the correct choice of du for the following substitution.",
-                "prompt_math": "",
-                "prompt_math_from_step": "step1",
-                "answer_mode": "derivative_of_step",
-                "derivative_of_step": "step1",
+                "prompt_math": math_payload.get("u_for_du", ""),
                 "answer": {
                     "kind": "normalized_set",
-                    "values": _values(math_payload.get("du_expression", "")),
+                    "values": _values(math_payload.get("du_for_du", "")),
                     "normalize": ["trim", "lowercase", "remove_spaces"],
                 },
                 "feedback": {"wrongHint": "", "explanation": ""},
