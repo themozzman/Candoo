@@ -210,6 +210,8 @@ def init_db(db_path: str) -> None:
         _ensure_course_tags_column(conn)
         _ensure_courses(conn)
         _ensure_course_tag_values(conn)
+        _ensure_course_quiz_folders(conn, "261math-10b-2")
+        _ensure_default_quiz_folder(conn, "261math-10b-2")
         conn.commit()
     finally:
         conn.close()
