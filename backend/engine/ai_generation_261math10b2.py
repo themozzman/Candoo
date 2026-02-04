@@ -224,7 +224,9 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
 
 
 _G6_ABS_RE = re.compile(r"(\\left\|)|(\\right\|)|\||\\abs|\\lvert|\\rvert", re.IGNORECASE)
-_G6_INTEGRAL_RE = re.compile(r"(\\int|\bint\b|∫|\bIntegral\()", re.IGNORECASE)
+_G6_INTEGRAL_RE = re.compile(r"(\\int|\bint\b|∫|\bIntegral\(|\bintegral\b)", re.IGNORECASE)
+_G6_BOUNDS_RE = re.compile(r"(_\{[^}]+\}\s*\^\{[^}]+\})|\bfrom\b.+\bto\b", re.IGNORECASE)
+_G6_DIFF_RE = re.compile(r"d\s*[a-zA-Z]", re.IGNORECASE)
 _G6_SIGNED_RE = re.compile(r"(^|\s)-\s*\\int", re.IGNORECASE)
 _G6_UPPER_LOWER_RE = re.compile(r"\(([^)]+)-([^)]+)\)")
 
@@ -249,7 +251,10 @@ def _validate_g6_flow(flow: dict) -> None:
                 continue
             if _G6_ABS_RE.search(value):
                 raise AIFlowError("G6 answers must not include absolute values")
-            if not _G6_INTEGRAL_RE.search(value):
+            has_integral = _G6_INTEGRAL_RE.search(value)
+            has_bounds = _G6_BOUNDS_RE.search(value)
+            has_diff = _G6_DIFF_RE.search(value)
+            if not (has_integral or (has_bounds and has_diff)):
                 raise AIFlowError("G6 answers must include definite integrals")
             if _G6_SIGNED_RE.search(value):
                 has_signed = True
