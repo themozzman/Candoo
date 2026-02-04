@@ -720,7 +720,7 @@ export default function App() {
     setAdminChecklist(defaultChecklist);
     updateChecklist({ spec: "in_progress", flow: "pending", validate: "pending", ready: "pending" });
     try {
-      const courseId = adminCourseId || selectedCourseId;
+      const courseId = is261Math10b2 ? selectedCourseId : adminCourseId || selectedCourseId;
       const data = await adminGenerateSpec(
         adminToken,
         is261Math10b2 ? "" : adminTopic,
