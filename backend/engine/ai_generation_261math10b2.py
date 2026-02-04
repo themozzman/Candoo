@@ -299,9 +299,16 @@ def _repair_f7_flow(flow: dict) -> None:
                 continue
             if not remaining:
                 break
-            next_type = sorted(remaining)[0]
-            if next_type.startswith("identify") and step.get("type") != "MC":
+            step_type = step.get("type")
+            if step_type == "MC":
+                candidates = [t for t in remaining if t == "identify_ud_mc"]
+            elif step_type == "SA":
+                candidates = [t for t in remaining if t in {"identify_ud_sa", "compute_definite", "compute_indefinite"}]
+            else:
+                candidates = []
+            if not candidates:
                 continue
+            next_type = sorted(candidates)[0]
             step["f7_type"] = next_type
             step["prompt_text"] = f7_type_text[next_type]
             remaining.discard(next_type)
