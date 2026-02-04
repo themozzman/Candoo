@@ -1,3 +1,5 @@
+import json
+
 from . import ai_generation_calc10b as base
 
 
@@ -11,8 +13,80 @@ COURSE_LABEL = "261FREN-20B-1"
 
 
 def generate_spec(topic: str, course: dict) -> dict:
-    return base.generate_spec(topic, course)
+    client = base._client()
+    course_tags = base._normalize_tags(course.get("tags"))
+    prompt = (
+        "You are a curriculum designer for a French course.\n"
+        "Create a JSON teaching spec for the topic.\n"
+        "Return ONLY valid JSON.\n\n"
+        "Required JSON keys:\n"
+        "- topic: string\n"
+        "- course_id: string\n"
+        "- learning_goals: array of strings\n"
+        "- rules_to_test: array of objects {id, description, examples}\n"
+        "- misconceptions: array of objects {id, description, why_common}\n"
+        "- question_blueprint: array of objects {rule_id, question_type, count}\n"
+        "- analytics_goals: array of strings\n"
+        "- notes: string\n\n"
+        f"Topic: {topic}\n"
+        f"Course: {course.get('id')} - {course.get('name')} ({course.get('subtitle')})\n"
+        f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
+        "Question types allowed: MC, SA.\n"
+        "All questions are language-focused (no math content)."
+    )
+    spec = base._json_response(client, prompt)
+    if not isinstance(spec, dict):
+        raise AIFlowError("Spec response must be a JSON object")
+    spec["topic"] = topic
+    spec["course_id"] = course.get("id")
+    spec["course_tags"] = course_tags
+    return spec
 
 
 def generate_flow(spec: dict, flow_id: str) -> dict:
-    return base.generate_flow(spec, flow_id)
+    client = base._client()
+    prompt = (
+        "You are generating a learning flow JSON for a French quiz.\n"
+        "Return ONLY valid JSON that follows this schema:\n"
+        "{\n"
+        '  "schemaVersion": 1,\n'
+        '  "id": "<flow_id>",\n'
+        '  "title": "<string>",\n'
+        '  "topic": "<string>",\n'
+        '  "statement": "<string>",\n'
+        '  "startStepId": "<step_id>",\n'
+        '  "steps": {\n'
+        '     "<step_id>": {\n'
+        '        "id": "<step_id>",\n'
+        '        "type": "MC" | "SA",\n'
+        '        "prompt_text": "<string>",\n'
+        '        "prompt_math": "",\n'
+        '        "options": [ { "value": "<string>", "text": "<string>", "math": "" } ]  // MC only,\n'
+        '        "answer": { "kind": "exact", "value": "<option.value>" }  // MC\n'
+        '        "answer": { "kind": "normalized_set", "values": ["..."], "normalize": ["trim","lowercase"] }  // SA\n'
+        '        "feedback": { "wrongHint": "<string>", "explanation": "<string>" },\n'
+        '        "solution": { "steps": [ { "text": "<string>", "math": "" } ] },\n'
+        '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
+        '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
+        '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" }\n'
+        "     }\n"
+        "  }\n"
+        "}\n\n"
+        "Rules:\n"
+        "- Use 6-10 steps total.\n"
+        "- Mix MC and SA questions.\n"
+        "- Use prompt_text for the instruction and content; prompt_math must be empty.\n"
+        "- MC options must be full English/French phrases, not single letters.\n"
+        "- For SA, accept 2-4 equivalent answers (case/whitespace variations).\n"
+        "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
+        "- All content must be language-focused (no math, formulas, or symbols).\n\n"
+        f"flow_id: {flow_id}\n"
+        f"Spec JSON:\n{json.dumps(spec, indent=2)}"
+    )
+    flow = base._json_response(client, prompt)
+    if not isinstance(flow, dict):
+        raise AIFlowError("Flow response must be a JSON object")
+    flow["schemaVersion"] = 1
+    flow["id"] = flow_id
+    base._shuffle_mc_options(flow)
+    return flow
