@@ -236,12 +236,21 @@ def _repair_f7_flow(flow: dict) -> None:
         "compute_indefinite": "Compute the following integral",
     }
     step_ids = list(steps.keys())
+    remaining = {"identify_ud_mc", "identify_ud_sa", "compute_definite", "compute_indefinite"}
     for step_id, step in steps.items():
         if not isinstance(step, dict):
             continue
         f7_type = step.get("f7_type")
+        if not f7_type:
+            step_type = step.get("type")
+            if step_type == "MC":
+                f7_type = "identify_ud_mc"
+            elif step_type == "SA":
+                f7_type = "compute_indefinite"
+            step["f7_type"] = f7_type
         if f7_type in f7_type_text:
             step["prompt_text"] = f7_type_text[f7_type]
+            remaining.discard(f7_type)
         step_type = step.get("type")
         if step_type == "MC":
             options = step.get("options") or []
@@ -265,6 +274,23 @@ def _repair_f7_flow(flow: dict) -> None:
                     values = [answer.get("value")]
                 answer = {"kind": "normalized_set", "values": values, "normalize": ["trim", "lowercase", "remove_spaces"]}
             step["answer"] = answer
+
+    if remaining:
+        for step_id in step_ids:
+            step = steps.get(step_id)
+            if not isinstance(step, dict):
+                continue
+            f7_type = step.get("f7_type")
+            if f7_type in remaining:
+                continue
+            if not remaining:
+                break
+            next_type = sorted(remaining)[0]
+            if next_type.startswith("identify") and step.get("type") != "MC":
+                continue
+            step["f7_type"] = next_type
+            step["prompt_text"] = f7_type_text[next_type]
+            remaining.discard(next_type)
 
     if step_ids:
         last_step = steps.get(step_ids[-1])
