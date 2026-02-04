@@ -1,4 +1,5 @@
 import json
+import re
 
 from . import ai_generation_calc10b as base
 from . import ai_generation_calc10b_F7 as f7_generator
@@ -134,6 +135,9 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             "- prompt_text is English-only, no math.\n"
             "- prompt_math is pure LaTeX for the expressions.\n"
             "- Provide 2-4 acceptable answer strings in answer.values for SA.\n"
+            "- Include BOTH answer styles in answer.values:\n"
+            "  1) Signed integrals (e.g., -∫ f(x) dx + ∫ f(x) dx)\n"
+            "  2) Upper-minus-lower integrands (e.g., ∫ (upper - lower) dx)\n"
             "- Use \\int and standard LaTeX, no evaluation.\n\n"
             "Example answer (format only):\n"
             '  "\\\\int_{a}^{b} (f(x)-g(x)) \\\\, dx + \\\\int_{b}^{c} (g(x)-f(x)) \\\\, dx"\n\n'
@@ -211,10 +215,50 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     flow["id"] = flow_id
     if folder_name == "F7":
         _repair_f7_flow(flow)
+    if folder_name == "G6":
+        _validate_g6_flow(flow)
     base._repair_math_formatting(flow, is_math_course)
     base._validate_math_formatting(flow, is_math_course)
     base._shuffle_mc_options(flow)
     return flow
+
+
+_G6_ABS_RE = re.compile(r"(\\left\|)|(\\right\|)|\||\\abs|\\lvert|\\rvert", re.IGNORECASE)
+_G6_INTEGRAL_RE = re.compile(r"\\int", re.IGNORECASE)
+_G6_SIGNED_RE = re.compile(r"(^|\s)-\s*\\int", re.IGNORECASE)
+_G6_UPPER_LOWER_RE = re.compile(r"\(([^)]+)-([^)]+)\)")
+
+
+def _validate_g6_flow(flow: dict) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        raise AIFlowError("Flow steps must be an object")
+    for step_id, step in steps.items():
+        if not isinstance(step, dict):
+            continue
+        if step.get("type") != "SA":
+            continue
+        answer = step.get("answer") or {}
+        values = answer.get("values") or []
+        if not values or not isinstance(values, list):
+            raise AIFlowError(f"G6 step {step_id} must include answer.values")
+        has_signed = False
+        has_upper_lower = False
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            if _G6_ABS_RE.search(value):
+                raise AIFlowError("G6 answers must not include absolute values")
+            if not _G6_INTEGRAL_RE.search(value):
+                raise AIFlowError("G6 answers must include definite integrals")
+            if _G6_SIGNED_RE.search(value):
+                has_signed = True
+            if _G6_UPPER_LOWER_RE.search(value):
+                has_upper_lower = True
+        if not (has_signed and has_upper_lower):
+            raise AIFlowError(
+                "G6 answers must include both signed and upper-minus-lower formats"
+            )
 
 
 def _repair_f7_flow(flow: dict) -> None:
