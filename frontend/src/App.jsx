@@ -2304,6 +2304,15 @@ export default function App() {
 
         {previewStatus && <div className="course-note">{previewStatus}</div>}
         {reportStatus && <div className="course-note">{reportStatus}</div>}
+        <footer className="app-footer">
+          <div>Copyright © 2026 Andres Toussieh. All Rights Reserved.</div>
+          <div>
+            No part of this tool may be reproduced, distributed, or transmitted in any
+            form or by any means, including photocopying, recording, or other
+            electronic or mechanical methods, without the prior written permission of
+            the copyright holder.
+          </div>
+        </footer>
       </main>
     </div>
   );
