@@ -200,6 +200,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             "- Indefinite results must include + C.\n"
             "- Definite results must be a number (evaluate bounds).\n"
             "- Always show correct u and du in solutions.\n\n"
+            "STRUCTURE RULE:\n"
+            "- The final step must set next.correct/next.wrong/next.skip to null.\n\n"
             f"flow_id: {flow_id}\n"
             f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
             f"Spec JSON:\n{json.dumps(spec, indent=2)}"
