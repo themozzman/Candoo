@@ -88,7 +88,6 @@ def generate_spec(topic: str, course: dict) -> dict:
 def generate_flow(spec: dict, flow_id: str) -> dict:
     client = base._client()
     course_tags = base._normalize_tags(spec.get("course_tags") or spec.get("tags"))
-    is_math_course = "math" in course_tags
     prompt = (
         F7_MATH_ONLY_INSTRUCTIONS
         + "\n\n"
@@ -177,7 +176,5 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             },
         },
     }
-    base._repair_math_formatting(flow, is_math_course)
-    base._validate_math_formatting(flow, is_math_course)
     return flow
 
