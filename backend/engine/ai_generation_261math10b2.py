@@ -224,7 +224,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
 
 
 _G6_ABS_RE = re.compile(r"(\\left\|)|(\\right\|)|\||\\abs|\\lvert|\\rvert", re.IGNORECASE)
-_G6_INTEGRAL_RE = re.compile(r"\\int", re.IGNORECASE)
+_G6_INTEGRAL_RE = re.compile(r"(\\int|\bint\b|∫|\bIntegral\()", re.IGNORECASE)
 _G6_SIGNED_RE = re.compile(r"(^|\s)-\s*\\int", re.IGNORECASE)
 _G6_UPPER_LOWER_RE = re.compile(r"\(([^)]+)-([^)]+)\)")
 
