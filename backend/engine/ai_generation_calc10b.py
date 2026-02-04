@@ -204,8 +204,6 @@ def _json_response(client: OpenAI, prompt: str) -> dict:
         raise AIFlowError(f"Failed to parse AI JSON: {exc}") from exc
 
 
-
-
 def now_label() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
 

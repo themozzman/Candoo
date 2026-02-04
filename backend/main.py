@@ -31,7 +31,7 @@ from engine.analytics import (
     set_user_courses,
     user_has_course,
 )
-from engine.ai_generation import AIFlowError, generate_flow, generate_spec, now_label
+from engine.quiz_generators import AIFlowError, get_quiz_generator, now_label
 from engine.db import is_postgres
 from engine.auth import (
     AuthError,
@@ -575,7 +575,8 @@ def admin_ai_spec(payload: AdminSpecRequest) -> dict:
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     try:
-        spec = generate_spec(payload.topic, course)
+        generator = get_quiz_generator(payload.course_id)
+        spec = generator.generate_spec(payload.topic, course)
     except AIFlowError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     spec_id = f"spec-{payload.course_id}-{now_label()}"
@@ -593,7 +594,8 @@ def admin_ai_spec_approve(payload: AdminSpecApproveRequest) -> dict:
     spec = payload.spec_override if payload.spec_override else record["spec"]
     flow_id = f"{record['course_id']}-{now_label()}"
     try:
-        flow = generate_flow(spec, flow_id)
+        generator = get_quiz_generator(record["course_id"])
+        flow = generator.generate_flow(spec, flow_id)
         validate_flow(flow, source="ai")
     except (AIFlowError, FlowValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

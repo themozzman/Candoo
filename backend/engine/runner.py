@@ -6,7 +6,7 @@ from uuid import uuid4
 from pathlib import Path
 
 from .analytics import get_recent_attempts, log_attempt, set_session_step, write_report_snapshot
-from .ai_generation import AIFlowError, generate_attempt_feedback
+from .quiz_generators import AIFlowError, generate_attempt_feedback
 import logging
 
 from .grading import grade_mc, grade_sa_detail
