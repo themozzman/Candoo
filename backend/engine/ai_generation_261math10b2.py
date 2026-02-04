@@ -25,20 +25,6 @@ G6_RUBRIC = {
     ],
 }
 
-F7_RUBRIC = {
-    "outcome": "F7: Evaluate an integral using substitution.",
-    "requirements": [
-        "Two integrals per assessment (definite or indefinite).",
-        "Identify u and du explicitly.",
-        "Include +C on indefinite integrals.",
-        "Definite integrals must evaluate to a number.",
-    ],
-    "response_format": [
-        "u and du specified.",
-        "Final answers correct for both parts.",
-    ],
-}
-
 PLACEHOLDER_RUBRIC = {
     "outcome": "Placeholder rubric (to be specified).",
     "requirements": ["To be defined."],
@@ -47,7 +33,7 @@ PLACEHOLDER_RUBRIC = {
 
 RUBRICS_BY_FOLDER = {
     "G6": G6_RUBRIC,
-    "F7": F7_RUBRIC,
+    "F7": None,
     "G7": PLACEHOLDER_RUBRIC,
     "G8": PLACEHOLDER_RUBRIC,
     "G9": PLACEHOLDER_RUBRIC,
@@ -59,7 +45,7 @@ def generate_spec(topic: str, course: dict) -> dict:
     course_tags = base._normalize_tags(course.get("tags"))
     folder_name = course.get("folder_name") or "G6"
     rubric = RUBRICS_BY_FOLDER.get(folder_name)
-    if rubric is None:
+    if rubric is None and folder_name != "F7":
         raise AIFlowError(
             f"Rubric for folder {folder_name} is not implemented yet."
         )
@@ -80,9 +66,9 @@ def generate_spec(topic: str, course: dict) -> dict:
         f"Topic: {topic}\n"
         f"Course: {course.get('id')} - {course.get('name')} ({course.get('subtitle')})\n"
         f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
-        f"Rubric JSON:\n{json.dumps(rubric, indent=2)}\n\n"
+        f"{'' if rubric is None else f'Rubric JSON:\\n{json.dumps(rubric, indent=2)}\\n\\n'}"
         "Question types allowed: SA, MC.\n"
-        "Follow the rubric exactly for the folder."
+        f"{'' if rubric is None else 'Follow the rubric exactly for the folder.'}"
     )
     spec = base._json_response(client, prompt)
     if not isinstance(spec, dict):
@@ -90,7 +76,8 @@ def generate_spec(topic: str, course: dict) -> dict:
     spec["topic"] = topic
     spec["course_id"] = course.get("id")
     spec["course_tags"] = course_tags
-    spec["rubric"] = rubric
+    if rubric is not None:
+        spec["rubric"] = rubric
     spec["folder_id"] = course.get("folder_id")
     spec["folder_name"] = folder_name
     return spec
@@ -219,7 +206,6 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     flow["id"] = flow_id
     if folder_name == "F7":
         _repair_f7_flow(flow)
-        _validate_f7_flow(flow)
     base._repair_math_formatting(flow, is_math_course)
     base._validate_math_formatting(flow, is_math_course)
     base._shuffle_mc_options(flow)
@@ -320,33 +306,3 @@ def _repair_f7_flow(flow: dict) -> None:
             last_step["next"] = {"correct": None, "wrong": None, "skip": None}
 
 
-def _validate_f7_flow(flow: dict) -> None:
-    steps = flow.get("steps")
-    if not isinstance(steps, dict) or not steps:
-        raise AIFlowError("Flow steps must be an object")
-    required_types = {"identify_ud_mc", "identify_ud_sa", "compute_definite", "compute_indefinite"}
-    seen = set()
-    for step_id, step in steps.items():
-        if not isinstance(step, dict):
-            continue
-        f7_type = step.get("f7_type")
-        if f7_type:
-            seen.add(f7_type)
-        step_type = step.get("type")
-        if step_type == "MC":
-            answer = step.get("answer") or {}
-            if answer.get("kind") != "exact":
-                raise AIFlowError(f"step {step_id} answer.kind must be exact for MC")
-            options = step.get("options") or []
-            for option in options:
-                if not isinstance(option, dict):
-                    continue
-                if option.get("text"):
-                    raise AIFlowError("MC option text contains math; keep math in option.math only")
-        elif step_type == "SA":
-            answer = step.get("answer") or {}
-            if answer.get("kind") != "normalized_set":
-                raise AIFlowError(f"step {step_id} answer.kind must be normalized_set for SA")
-    if not required_types.issubset(seen):
-        missing = sorted(required_types - seen)
-        raise AIFlowError(f"F7 flow missing required step types: {', '.join(missing)}")
