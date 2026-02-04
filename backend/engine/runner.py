@@ -9,7 +9,7 @@ from .analytics import get_recent_attempts, log_attempt, set_session_step, write
 from .quiz_generators import AIFlowError, generate_attempt_feedback
 import logging
 
-from .grading import grade_mc, grade_sa_detail
+from .grading import grade_mc, grade_sa_derivative, grade_sa_detail
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,19 @@ def submit_answer(
     if not skipped:
         if step["type"] == "MC":
             correct = grade_mc(response, step["answer"]["value"])
+        elif step.get("answer_mode") == "derivative_of_step":
+            source_step_id = step.get("derivative_of_step")
+            source_attempts = (
+                get_recent_attempts(db_path, session_id, source_step_id, limit=1)
+                if source_step_id
+                else []
+            )
+            source_response = source_attempts[-1]["response"] if source_attempts else ""
+            correct, grading_issue = grade_sa_derivative(
+                response,
+                source_response,
+                step["answer"].get("normalize", []),
+            )
         else:
             correct, grading_issue = grade_sa_detail(
                 response,
@@ -145,6 +158,16 @@ def submit_answer(
         feedback = step["feedback"]["explanation"] if correct else step["feedback"]["wrongHint"]
 
     next_step = flow["steps"].get(next_step_id) if next_step_id else None
+    if next_step and next_step.get("prompt_math_from_step"):
+        source_step_id = next_step.get("prompt_math_from_step")
+        source_attempts = (
+            get_recent_attempts(db_path, session_id, source_step_id, limit=1)
+            if source_step_id
+            else []
+        )
+        if source_attempts:
+            next_step = dict(next_step)
+            next_step["prompt_math"] = source_attempts[-1]["response"]
     return {
         "correct": bool(correct),
         "skipped": bool(skipped),
@@ -251,6 +274,8 @@ def _next_step_id(step: dict, correct: bool, skipped: bool) -> str | None:
 def _correct_answer(step: dict) -> str:
     if step["type"] == "MC":
         return step["answer"]["value"]
+    if step.get("answer_mode") == "derivative_of_step":
+        return ""
     values = step["answer"]["values"]
     return values[0] if values else ""
 

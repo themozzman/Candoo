@@ -7,6 +7,7 @@ from sympy import (
     E,
     Integral,
     Symbol,
+    diff,
     acos,
     asin,
     atan,
@@ -245,5 +246,53 @@ def grade_sa_detail(
             for value_expr in value_exprs:
                 if _expressions_equivalent(response_expr, value_expr, allow_constant_shift):
                     return True, None
+
+    return False, None
+
+
+def grade_sa_derivative(
+    response: str, base_expression: str, normalize_ops: Iterable[str]
+) -> tuple[bool, Optional[str]]:
+    normalized_response = normalize_value(response, normalize_ops)
+    if not normalized_response:
+        return False, None
+
+    if len(response) > MAX_RESPONSE_LEN:
+        logger.info("SA response too long", extra={"length": len(response)})
+        return False, "too_long"
+
+    if not VALID_CHAR_PATTERN.match(response or ""):
+        logger.info("SA response has invalid characters")
+        return False, "invalid_chars"
+
+    operator_count = len(re.findall(r"[+\-*/^]", response))
+    if operator_count > MAX_OPERATOR_COUNT:
+        logger.info("SA response too complex", extra={"operators": operator_count})
+        return False, "too_complex"
+
+    response_exprs = _parse_math_expressions(response)
+    if not response_exprs:
+        logger.info("SA response parse error")
+        return False, "parse_error"
+
+    base_exprs = _parse_math_expressions(base_expression)
+    if not base_exprs:
+        logger.info("Base expression parse error")
+        return False, "parse_error"
+
+    derivative_exprs: list[object] = []
+    for base_expr in base_exprs:
+        symbols = sorted(base_expr.free_symbols, key=lambda sym: sym.name)
+        if not symbols:
+            derivative_exprs.append(diff(base_expr))
+            continue
+        preferred = next((sym for sym in symbols if sym.name == "x"), None)
+        variable = preferred or symbols[0]
+        derivative_exprs.append(diff(base_expr, variable))
+
+    for response_expr in response_exprs:
+        for derivative_expr in derivative_exprs:
+            if _expressions_equivalent(response_expr, derivative_expr, False):
+                return True, None
 
     return False, None

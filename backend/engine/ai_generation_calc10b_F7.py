@@ -144,7 +144,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
                 "id": "step2",
                 "type": "SA",
                 "prompt_text": "Identify the correct choice of du for the following substitution.",
-                "prompt_math": math_payload.get("u_expression", ""),
+                "prompt_math": "",
+                "prompt_math_from_step": "step1",
+                "answer_mode": "derivative_of_step",
+                "derivative_of_step": "step1",
                 "answer": {
                     "kind": "normalized_set",
                     "values": _values(math_payload.get("du_expression", "")),
