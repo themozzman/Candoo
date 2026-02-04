@@ -36,6 +36,7 @@ F7_MATH_ONLY_INSTRUCTIONS = (
     '  "u_expression": "<latex expression>",\n'
     '  "du_expression": "<latex expression>",\n'
     '  "u_for_du": "<latex expression>",\n'
+    '  "parent_integral_for_du": "<latex integral>",\n'
     '  "du_for_du": "<latex expression>",\n'
     '  "bounded_integral_a": "<latex integral with bounds>",\n'
     '  "bounded_answer_a": "<latex numeric result>",\n'
@@ -51,6 +52,7 @@ F7_MATH_ONLY_INSTRUCTIONS = (
     "- The u_expression must match the integral_for_u.\n"
     "- The du_expression must be the correct differential for u.\n"
     "- The u_for_du must be different from u_expression and integral_for_u.\n"
+    "- The parent_integral_for_du must match u_for_du.\n"
     "- The du_for_du must be the correct differential for u_for_du.\n"
     "- All bounded/unbounded integrals must be different from integral_for_u.\n"
     "- bounded_integral_a, bounded_integral_b, unbounded_integral_a, unbounded_integral_b must all be different from each other.\n"
@@ -148,7 +150,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
                 "id": "step2",
                 "type": "SA",
                 "prompt_text": "Identify the correct choice of du for the following substitution.",
-                "prompt_math": math_payload.get("u_for_du", ""),
+                "prompt_math": (
+                    f"u = {math_payload.get('u_for_du', '')} \\\\ "
+                    f"{math_payload.get('parent_integral_for_du', '')}"
+                ).strip(),
                 "answer": {
                     "kind": "normalized_set",
                     "values": _values(math_payload.get("du_for_du", "")),
