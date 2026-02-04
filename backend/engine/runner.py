@@ -136,11 +136,14 @@ def submit_answer(
             str(Path(__file__).resolve().parents[1] / "reports"),
         )
     )
-    write_report_snapshot(
-        db_path=db_path,
-        flow=flow,
-        reports_dir=reports_dir,
-    )
+    try:
+        write_report_snapshot(
+            db_path=db_path,
+            flow=flow,
+            reports_dir=reports_dir,
+        )
+    except Exception:
+        logger.exception("Failed to write report snapshot")
 
     if skipped:
         feedback = "Skipped."
