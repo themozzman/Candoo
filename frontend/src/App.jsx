@@ -337,6 +337,8 @@ export default function App() {
     return courses.find((course) => course.id === courseId);
   }, [courses, adminCourseRosterId, selectedCourseId]);
 
+  const is261Math10b2 = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
+
   const courseFlows = useMemo(() => {
     if (!selectedCourseId) {
       return [];
@@ -721,7 +723,7 @@ export default function App() {
       const courseId = adminCourseId || selectedCourseId;
       const data = await adminGenerateSpec(
         adminToken,
-        adminTopic,
+        is261Math10b2 ? "" : adminTopic,
         courseId,
         adminFolderId
       );
@@ -1682,17 +1684,19 @@ export default function App() {
                               ))}
                             </select>
                           </div>
-                          <div className="form-field">
-                            <label className="form-label">Topic</label>
-                            <input
-                              className="form-input"
-                              type="text"
-                              value={adminTopic}
-                              onChange={(event) => setAdminTopic(event.target.value)}
-                              placeholder="e.g. Trigonometric derivatives"
-                              required
-                            />
-                          </div>
+                          {!is261Math10b2 && (
+                            <div className="form-field">
+                              <label className="form-label">Topic</label>
+                              <input
+                                className="form-input"
+                                type="text"
+                                value={adminTopic}
+                                onChange={(event) => setAdminTopic(event.target.value)}
+                                placeholder="e.g. Trigonometric derivatives"
+                                required
+                              />
+                            </div>
+                          )}
                           <div className="form-field">
                             <label className="form-label">&nbsp;</label>
                             <button className="button-primary" type="submit">
