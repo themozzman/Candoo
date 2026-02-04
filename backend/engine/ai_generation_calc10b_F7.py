@@ -149,7 +149,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             "step2": {
                 "id": "step2",
                 "type": "SA",
-                "prompt_text": "Find du",
+                "prompt_text": "Find du given the integral and u",
                 "prompt_math": (
                     f"{math_payload.get('integral_for_du', '')} \\\\ "
                     f"u = {math_payload.get('u_for_du', '')}"
