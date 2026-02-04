@@ -25,6 +25,7 @@ from engine.analytics import (
     move_quiz_to_folder,
     create_quiz_folder,
     delete_quiz_folder,
+    delete_ai_flow,
     rename_quiz_folder,
     reset_auth_data,
     reset_flow_data,
@@ -244,6 +245,11 @@ class AdminQuizFolderMoveRequest(BaseModel):
     course_id: str
     flow_id: str
     folder_id: str
+
+
+class AdminQuizDeleteRequest(BaseModel):
+    token: str
+    flow_id: str
 
 
 class SessionAnalysisRequest(BaseModel):
@@ -852,3 +858,18 @@ def admin_quiz_folders_move(
     move_quiz_to_folder(DB_PATH, payload.course_id, payload.flow_id, payload.folder_id)
     folders = list_quiz_folders(DB_PATH, payload.course_id)
     return {"folders": folders}
+
+
+@app.post("/admin/ai/flow/delete")
+def admin_ai_flow_delete(
+    payload: AdminQuizDeleteRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    course_id = delete_ai_flow(DB_PATH, payload.flow_id)
+    if course_id is None:
+        raise HTTPException(status_code=404, detail="Flow not found")
+    path = FLOWS_DIR / f"{payload.flow_id}.json"
+    if path.exists():
+        path.unlink(missing_ok=True)
+    _reload_flows()
+    return {"success": True, "flow_id": payload.flow_id, "course_id": course_id}

@@ -180,6 +180,13 @@ export function adminMoveQuizFolder(token, courseId, flowId, folderId) {
   });
 }
 
+export function adminDeleteFlow(token, flowId) {
+  return request("/admin/ai/flow/delete", {
+    method: "POST",
+    body: JSON.stringify({ token, flow_id: flowId })
+  });
+}
+
 export function adminSetCourseStudents(token, courseId, studentIds) {
   return request("/admin/courses/students/set", {
     method: "POST",

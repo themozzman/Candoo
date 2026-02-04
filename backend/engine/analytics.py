@@ -371,6 +371,33 @@ def _ensure_default_quiz_folder(conn: "DBConnection", course_id: str) -> str:
     return default_id
 
 
+def _ensure_course_quiz_folders(conn: "DBConnection", course_id: str) -> None:
+    if course_id != "261math-10b-2":
+        return
+    set_row_factory(conn)
+    required = ["F7", "G6", "G7", "G8", "G9"]
+    existing = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM quiz_folders WHERE course_id = ?", (course_id,)
+        ).fetchall()
+    }
+    now = _now_iso()
+    missing = [
+        (f"folder-{course_id}-{uuid4()}", course_id, name, now)
+        for name in required
+        if name not in existing
+    ]
+    if missing:
+        conn.executemany(
+            """
+            INSERT INTO quiz_folders (id, course_id, name, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            missing,
+        )
+
+
 def _parse_course_row(row: dict) -> dict:
     data = dict(row)
     tags_raw = data.get("tags")
@@ -423,6 +450,7 @@ def list_quiz_folders(db_path: str, course_id: str) -> list[dict]:
     conn = connect_db(db_path)
     set_row_factory(conn)
     try:
+        _ensure_course_quiz_folders(conn, course_id)
         _ensure_default_quiz_folder(conn, course_id)
         folders = conn.execute(
             """
@@ -558,6 +586,35 @@ def move_quiz_to_folder(
             (flow_id, folder_id, _now_iso()),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_ai_flow(db_path: str, flow_id: str) -> str | None:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, course_id FROM ai_flows WHERE id = ?
+            """,
+            (flow_id,),
+        ).fetchone()
+        if not row:
+            return None
+        course_id = row["course_id"]
+        conn.execute("DELETE FROM quiz_folder_items WHERE flow_id = ?", (flow_id,))
+        conn.execute("DELETE FROM ai_flows WHERE id = ?", (flow_id,))
+        conn.execute(
+            """
+            UPDATE courses
+            SET active_flow_id = NULL
+            WHERE active_flow_id = ?
+            """,
+            (flow_id,),
+        )
+        conn.commit()
+        return course_id
     finally:
         conn.close()
 
