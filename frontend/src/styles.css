@@ -1540,6 +1540,29 @@ body {
   gap: 10px;
 }
 
+.report-goals {
+  display: grid;
+  gap: 10px;
+}
+
+.report-goal-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f9fafb;
+}
+
+.report-goal-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #111827;
+}
+
+.report-goal-metrics {
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .report-bottleneck {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -1562,6 +1585,20 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.report-correlations {
+  display: grid;
+  gap: 10px;
+}
+
+.report-correlation {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  font-size: 12px;
+  color: #475569;
 }
 
 .report-question-card {
@@ -1636,6 +1673,12 @@ body {
 }
 
 .report-student-metrics {
+  font-size: 12px;
+  color: #6b7280;
+  flex: 1;
+}
+
+.report-student-goals {
   font-size: 12px;
   color: #6b7280;
   flex: 1;

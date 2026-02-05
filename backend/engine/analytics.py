@@ -1127,6 +1127,18 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
         misconception_counts = {}
         step_insights = {}
         total_steps = len(steps)
+        step_goal_map = {
+            step["id"]: step.get("goal_id")
+            for step in steps
+            if isinstance(step, dict)
+        }
+        goal_order = [
+            goal_id
+            for goal_id in [step.get("goal_id") for step in steps]
+            if goal_id not in {None, ""}
+        ]
+        goal_ids = sorted(set(goal_order), key=lambda item: goal_order.index(item))
+        goal_summary = {goal_id: {"attempts": 0, "correct": 0, "wrong": 0, "skipped": 0} for goal_id in goal_ids}
 
         for step in steps:
             step_id = step["id"]
@@ -1220,6 +1232,13 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
                 current["skipped"] += skipped
                 insight_by_skill[skill_key] = current
 
+            goal_id = step_goal_map.get(step_id)
+            if goal_id in goal_summary:
+                goal_summary[goal_id]["attempts"] += attempts
+                goal_summary[goal_id]["correct"] += correct
+                goal_summary[goal_id]["wrong"] += wrong
+                goal_summary[goal_id]["skipped"] += skipped
+
             option_insights = step.get("option_insights") or {}
             if isinstance(option_insights, dict):
                 for response, count in common_wrong:
@@ -1289,7 +1308,29 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
             reverse=True,
         )
 
-        students = _build_student_report(conn, flow_id, steps, total_steps)
+        students, student_goal_summary, at_risk_summary = _build_student_report(
+            conn, flow_id, steps, total_steps, step_goal_map, goal_ids
+        )
+        goal_summary_list = []
+        for goal_id, stats in goal_summary.items():
+            attempts = stats["attempts"]
+            correct = stats["correct"]
+            skipped = stats["skipped"]
+            wrong = stats["wrong"]
+            goal_summary_list.append(
+                {
+                    "goal_id": goal_id,
+                    "attempts": attempts,
+                    "correct_count": correct,
+                    "wrong_count": wrong,
+                    "skip_count": skipped,
+                    "accuracy": round((correct / attempts), 4) if attempts else 0.0,
+                    "skip_rate": round((skipped / attempts), 4) if attempts else 0.0,
+                    "at_risk_count": at_risk_summary.get(goal_id, 0),
+                }
+            )
+
+        correlations = _build_step_correlations(conn, flow_id, steps)
 
         return {
             "flow_id": flow_id,
@@ -1302,6 +1343,9 @@ def get_teacher_report(db_path: str, flow_id: str, steps: list[dict]) -> dict:
                 "by_skill": insight_by_skill,
                 "misconceptions": misconception_counts,
             },
+            "goal_summary": goal_summary_list,
+            "student_goal_summary": student_goal_summary,
+            "correlations": correlations,
             "students": students,
         }
     finally:
@@ -1329,8 +1373,13 @@ def _now_iso() -> str:
 
 
 def _build_student_report(
-    conn: "DBConnection", flow_id: str, steps: list[dict], total_steps: int
-) -> list[dict]:
+    conn: "DBConnection",
+    flow_id: str,
+    steps: list[dict],
+    total_steps: int,
+    step_goal_map: dict,
+    goal_ids: list,
+) -> tuple[list[dict], dict, dict]:
     students = [
         row["student_id"]
         for row in conn.execute(
@@ -1344,6 +1393,8 @@ def _build_student_report(
     ]
     step_ids = [step["id"] for step in steps]
     report = []
+    student_goal_summary = {}
+    at_risk_summary = {goal_id: 0 for goal_id in goal_ids}
 
     for student_id in students:
         attempts = _scalar(
@@ -1476,11 +1527,74 @@ def _build_student_report(
                 ):
                     troublesome = candidate
 
+        goal_stats = {goal_id: {"attempts": 0, "correct": 0, "wrong": 0, "skipped": 0} for goal_id in goal_ids}
+        for step_id in step_ids:
+            goal_id = step_goal_map.get(step_id)
+            if goal_id not in goal_stats:
+                continue
+            step_attempts = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ?
+                """,
+                (flow_id, student_id, step_id),
+            )
+            step_correct = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ? AND correct = 1
+                """,
+                (flow_id, student_id, step_id),
+            )
+            step_wrong = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ? AND correct = 0 AND skipped = 0
+                """,
+                (flow_id, student_id, step_id),
+            )
+            step_skipped = _scalar(
+                conn,
+                """
+                SELECT COUNT(*) FROM attempts
+                WHERE flow_id = ? AND student_id = ? AND step_id = ? AND skipped = 1
+                """,
+                (flow_id, student_id, step_id),
+            )
+            goal_stats[goal_id]["attempts"] += step_attempts
+            goal_stats[goal_id]["correct"] += step_correct
+            goal_stats[goal_id]["wrong"] += step_wrong
+            goal_stats[goal_id]["skipped"] += step_skipped
+
+        goal_results = []
         at_risk = (
             wrong_rate >= 0.4
             or skip_rate >= 0.25
             or completion_rate < 0.6
         )
+        for goal_id, stats in goal_stats.items():
+            attempts_goal = stats["attempts"]
+            correct_goal = stats["correct"]
+            skipped_goal = stats["skipped"]
+            accuracy = (correct_goal / attempts_goal) if attempts_goal else 0.0
+            skip_rate_goal = (skipped_goal / attempts_goal) if attempts_goal else 0.0
+            goal_results.append(
+                {
+                    "goal_id": goal_id,
+                    "attempts": attempts_goal,
+                    "correct_count": correct_goal,
+                    "wrong_count": stats["wrong"],
+                    "skip_count": skipped_goal,
+                    "accuracy": round(accuracy, 4),
+                    "skip_rate": round(skip_rate_goal, 4),
+                }
+            )
+            if accuracy < 0.5 or skip_rate_goal >= 0.25:
+                at_risk = True
+                at_risk_summary[goal_id] = at_risk_summary.get(goal_id, 0) + 1
 
         report.append(
             {
@@ -1501,10 +1615,52 @@ def _build_student_report(
                 "most_troublesome_step": troublesome,
                 "misconceptions": misconceptions,
                 "at_risk": at_risk,
+                "goal_results": goal_results,
             }
         )
+        student_goal_summary[student_id] = goal_results
 
-    return report
+    return report, student_goal_summary, at_risk_summary
+
+
+def _build_step_correlations(conn: "DBConnection", flow_id: str, steps: list[dict]) -> list[dict]:
+    step_ids = [step["id"] for step in steps]
+    student_ids = [
+        row["student_id"]
+        for row in conn.execute(
+            """
+            SELECT DISTINCT student_id FROM attempts
+            WHERE flow_id = ?
+            """,
+            (flow_id,),
+        ).fetchall()
+    ]
+    miss_map = {step_id: set() for step_id in step_ids}
+    for step_id in step_ids:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT student_id FROM attempts
+            WHERE flow_id = ? AND step_id = ? AND (correct = 0 OR skipped = 1)
+            """,
+            (flow_id, step_id),
+        ).fetchall()
+        miss_map[step_id] = {row["student_id"] for row in rows}
+    correlations = []
+    for i, step_a in enumerate(step_ids):
+        for step_b in step_ids[i + 1 :]:
+            both = miss_map[step_a].intersection(miss_map[step_b])
+            if len(both) < 2:
+                continue
+            correlations.append(
+                {
+                    "step_a": step_a,
+                    "step_b": step_b,
+                    "students": len(both),
+                    "student_ids": sorted(both),
+                }
+            )
+    correlations.sort(key=lambda item: item["students"], reverse=True)
+    return correlations[:10]
 
 
 def _slugify(value: str) -> str:

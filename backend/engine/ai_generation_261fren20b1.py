@@ -89,7 +89,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         '        "solution": { "steps": [ { "text": "<string>", "math": "" } ] },\n'
         '        "attemptPolicy": { "revealAfter": 2, "allowSkip": true },\n'
         '        "next": { "correct": "<step_id>", "wrong": "<step_id>", "skip": "<step_id>" },\n'
-        '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" }\n'
+        '        "insights": { "skill": "<string>", "rule": "<string>", "misconception_focus": "<string>" },\n'
+        '        "goal_id": "<learning_goal_index>"\n'
         "     }\n"
         "  }\n"
         "}\n\n"
@@ -103,6 +104,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Prefer contextual sentences that require tense + verb choice decisions.\n"
         "- Distractors must be plausible and differ by a subtle error.\n"
         f"- Output exactly {expected_steps} steps total.\n"
+        "- Each step must include goal_id set to the 1-based learning goal index.\n"
         "- Use prompt_text for the instruction and content; prompt_math must be empty.\n"
         "- MC options must be full English/French phrases, not single letters.\n"
         "- For SA, accept 2-4 equivalent answers (case/whitespace variations).\n"

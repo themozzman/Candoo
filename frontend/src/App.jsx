@@ -1040,6 +1040,8 @@ export default function App() {
   const reportStudents = reportData?.students || [];
   const reportBottlenecks = reportData?.bottlenecks || [];
   const reportWrongSamples = reportData?.wrong_response_samples || {};
+  const reportGoalSummary = reportData?.goal_summary || [];
+  const reportCorrelations = reportData?.correlations || [];
   const totalAttempts = reportSummary.reduce(
     (sum, step) => sum + (step.attempts || 0),
     0
@@ -2252,6 +2254,47 @@ export default function App() {
                 )}
 
                 <div className="report-section">
+                  <div className="report-section-title">Goal overview</div>
+                  {reportGoalSummary.length === 0 ? (
+                    <div className="report-empty">No goal data yet.</div>
+                  ) : (
+                    <div className="report-goals">
+                      {reportGoalSummary.map((goal) => (
+                        <div key={goal.goal_id} className="report-goal-card">
+                          <div className="report-goal-title">
+                            Goal {goal.goal_id}
+                          </div>
+                          <div className="report-goal-metrics">
+                            Accuracy: {formatPercent(goal.accuracy, 0)} | Skip:{" "}
+                            {formatPercent(goal.skip_rate, 0)} | Attempts:{" "}
+                            {goal.attempts} | At risk: {goal.at_risk_count}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="report-section">
+                  <div className="report-section-title">Correlations</div>
+                  {reportCorrelations.length === 0 ? (
+                    <div className="report-empty">No strong correlations yet.</div>
+                  ) : (
+                    <div className="report-correlations">
+                      {reportCorrelations.map((item) => (
+                        <div
+                          key={`${item.step_a}-${item.step_b}`}
+                          className="report-correlation"
+                        >
+                          Missed both {item.step_a} and {item.step_b}:{" "}
+                          {item.students} students
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="report-section">
                   <div className="report-section-title">Bottlenecks</div>
                   {reportBottlenecks.length === 0 ? (
                     <div className="report-empty">No bottlenecks yet.</div>
@@ -2344,6 +2387,20 @@ export default function App() {
                             {formatPercent(student.skip_rate, 0)} | Attempts:{" "}
                             {student.attempts}
                           </div>
+                          {student.goal_results?.length > 0 && (
+                            <div className="report-student-goals">
+                              Goals:{" "}
+                              {student.goal_results
+                                .map(
+                                  (goal) =>
+                                    `G${goal.goal_id} ${formatPercent(
+                                      goal.accuracy,
+                                      0
+                                    )}`
+                                )
+                                .join(" | ")}
+                            </div>
+                          )}
                           {student.at_risk && (
                             <span className="report-student-flag">At risk</span>
                           )}
