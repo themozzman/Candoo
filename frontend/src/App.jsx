@@ -26,6 +26,7 @@ import {
   fetchReport,
   login,
   logout,
+  reportQuestion,
   requestPasswordReset,
   resetPassword,
   startSession,
@@ -83,6 +84,10 @@ export default function App() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStatus, setReportStatus] = useState("");
   const [reportMeta, setReportMeta] = useState(null);
+  const [reportQuestionOpen, setReportQuestionOpen] = useState(false);
+  const [reportQuestionMessage, setReportQuestionMessage] = useState("");
+  const [reportQuestionStatus, setReportQuestionStatus] = useState("");
+  const [reportQuestionSending, setReportQuestionSending] = useState(false);
   const [courseStudentCounts, setCourseStudentCounts] = useState({});
   const [courseFolders, setCourseFolders] = useState([]);
   const [courseFolderStatus, setCourseFolderStatus] = useState("");
@@ -473,6 +478,10 @@ export default function App() {
     setPendingNextStep(null);
     setAnalysisLoading(false);
     setFinishReady(false);
+    setReportQuestionOpen(false);
+    setReportQuestionMessage("");
+    setReportQuestionStatus("");
+    setReportQuestionSending(false);
     if (advanceTimerRef.current) {
       clearTimeout(advanceTimerRef.current);
       advanceTimerRef.current = null;
@@ -513,12 +522,33 @@ export default function App() {
       });
       setResult(data);
       setAnalysisLoading(false);
-      if (data.skipped && data.next_step) {
-        if (data.next_step.id !== currentStep.id) {
-          setQuestionIndex((prev) => prev + 1);
+      if (data.skipped) {
+        if (data.next_step) {
+          if (data.next_step.id !== currentStep.id) {
+            setQuestionIndex((prev) => prev + 1);
+          }
+          setCurrentStep(data.next_step);
+          setStepStartTs(Date.now());
+        } else {
+          setCurrentStep(null);
+          setStepStartTs(null);
         }
-        setCurrentStep(data.next_step);
-        setStepStartTs(Date.now());
+        setResult(null);
+        setPendingNextStep(null);
+        setFinishReady(false);
+        return;
+      }
+      if (data.recorded) {
+        if (data.next_step) {
+          if (data.next_step.id !== currentStep.id) {
+            setQuestionIndex((prev) => prev + 1);
+          }
+          setCurrentStep(data.next_step);
+          setStepStartTs(Date.now());
+        } else {
+          setCurrentStep(null);
+          setStepStartTs(null);
+        }
         setResult(null);
         setPendingNextStep(null);
         setFinishReady(false);
@@ -597,6 +627,13 @@ export default function App() {
       .finally(() => setAnalysisLoading(false));
   }, [result?.analysisPending, sessionId, currentStep?.id]);
 
+  useEffect(() => {
+    setReportQuestionOpen(false);
+    setReportQuestionMessage("");
+    setReportQuestionStatus("");
+    setReportQuestionSending(false);
+  }, [currentStep?.id]);
+
   const handleAdvanceNow = () => {
     if (!pendingNextStep || !currentStep || !sessionId) {
       return;
@@ -635,6 +672,34 @@ export default function App() {
         setFinishReady(false);
       })
       .catch((err) => setError(err.message));
+  };
+
+  const handleReportQuestion = async () => {
+    if (!sessionId || !currentStep || reportQuestionSending) {
+      return;
+    }
+    const message = reportQuestionMessage.trim();
+    if (!message) {
+      setReportQuestionStatus("Please add a brief note.");
+      return;
+    }
+    setReportQuestionSending(true);
+    setReportQuestionStatus("");
+    try {
+      await reportQuestion({
+        session_id: sessionId,
+        flow_id: activeFlow?.id || selectedFlowId,
+        step_id: currentStep.id,
+        message
+      });
+      setReportQuestionMessage("");
+      setReportQuestionStatus("Reported. Thank you!");
+      setReportQuestionOpen(false);
+    } catch (err) {
+      setReportQuestionStatus(err.message);
+    } finally {
+      setReportQuestionSending(false);
+    }
   };
 
   const resetCourseState = () => {
@@ -2049,8 +2114,51 @@ export default function App() {
                       Question {questionIndex}
                       {totalSteps ? ` of ${totalSteps}` : ""}
                     </div>
-                    <span className="runner-step-badge">{currentStep.type}</span>
+                    <div className="runner-step-actions">
+                      <span className="runner-step-badge">{currentStep.type}</span>
+                      <button
+                        className="runner-report-button"
+                        type="button"
+                        onClick={() => {
+                          setReportQuestionStatus("");
+                          setReportQuestionOpen((prev) => !prev);
+                        }}
+                      >
+                        Report question
+                      </button>
+                    </div>
                   </div>
+                  {reportQuestionOpen && (
+                    <div className="runner-report-bubble">
+                      <textarea
+                        className="runner-report-input"
+                        rows={3}
+                        value={reportQuestionMessage}
+                        onChange={(event) => setReportQuestionMessage(event.target.value)}
+                        placeholder="What seems wrong or confusing?"
+                      />
+                      {reportQuestionStatus && (
+                        <div className="runner-report-status">{reportQuestionStatus}</div>
+                      )}
+                      <div className="runner-report-actions">
+                        <button
+                          className="button-primary"
+                          type="button"
+                          onClick={handleReportQuestion}
+                          disabled={reportQuestionSending}
+                        >
+                          {reportQuestionSending ? "Sending..." : "Send"}
+                        </button>
+                        <button
+                          className="button-ghost"
+                          type="button"
+                          onClick={() => setReportQuestionOpen(false)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {totalSteps && (
                     <div className="runner-progress">
                       <div

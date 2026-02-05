@@ -83,8 +83,11 @@ def submit_answer(
     attempt_number = _count_attempts(db_path, session_id, step_id) + 1
     correct = False
     grading_issue = None
+    is_manual = step.get("grading") == "manual"
     if not skipped:
-        if step["type"] == "MC":
+        if is_manual:
+            correct = True
+        elif step["type"] == "MC":
             correct = grade_mc(response, step["answer"]["value"])
         else:
             correct, grading_issue = grade_sa_detail(
@@ -94,13 +97,13 @@ def submit_answer(
             )
 
     next_step_id = _next_step_id(step, correct, skipped)
-    if not correct and not skipped:
+    if not correct and not skipped and not is_manual:
         next_step_id = step_id
 
     reveal = False
     correct_answer = None
     reveal_next_step = None
-    if not correct and not skipped:
+    if not correct and not skipped and not is_manual:
         reveal_after = step["attemptPolicy"]["revealAfter"]
         if attempt_number >= reveal_after:
             reveal = True
@@ -144,6 +147,8 @@ def submit_answer(
 
     if skipped:
         feedback = "Skipped."
+    elif is_manual:
+        feedback = "Response recorded."
     elif not correct and grading_issue:
         feedback = PARSE_FEEDBACK.get(grading_issue, step["feedback"]["wrongHint"])
         logger.info(
@@ -162,6 +167,7 @@ def submit_answer(
         "correct": bool(correct),
         "skipped": bool(skipped),
         "reveal": reveal,
+        "recorded": bool(is_manual and not skipped),
         "feedback": feedback,
         "correctAnswer": correct_answer if reveal else None,
         "analysisPending": bool(reveal),

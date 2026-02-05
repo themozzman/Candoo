@@ -41,6 +41,19 @@ def init_db(db_path: str) -> None:
         )
         conn.execute(
             f"""
+            CREATE TABLE IF NOT EXISTS question_reports (
+                id {auto_id},
+                session_id TEXT NOT NULL,
+                flow_id TEXT NOT NULL,
+                step_id TEXT NOT NULL,
+                student_id TEXT NOT NULL,
+                message TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            f"""
             CREATE TABLE IF NOT EXISTS users (
                 id {auto_id},
                 username TEXT NOT NULL UNIQUE,
@@ -122,6 +135,12 @@ def init_db(db_path: str) -> None:
             """
             CREATE INDEX IF NOT EXISTS idx_attempts_flow_step
             ON attempts(flow_id, step_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_question_reports_flow_step
+            ON question_reports(flow_id, step_id)
             """
         )
         conn.execute(
@@ -1137,6 +1156,49 @@ def get_recent_attempts(
         for row in reversed(rows)
     ]
     return attempts
+
+
+def log_question_report(
+    db_path: str,
+    session_id: str,
+    flow_id: str,
+    step_id: str,
+    student_id: str,
+    message: str | None,
+) -> None:
+    now = _now_iso()
+    conn = connect_db(db_path)
+    try:
+        conn.execute(
+            """
+            INSERT INTO question_reports (
+                session_id, flow_id, step_id, student_id, message, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (session_id, flow_id, step_id, student_id, message or None, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_question_reports(db_path: str, limit: int = 100) -> list[dict]:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        rows = conn.execute(
+            """
+            SELECT session_id, flow_id, step_id, student_id, message, created_at
+            FROM question_reports
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
 
 
 def write_report_snapshot(db_path: str, flow: dict, reports_dir: Path) -> None:

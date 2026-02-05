@@ -47,6 +47,13 @@ export function submitAnswer(sessionId, payload) {
   });
 }
 
+export function reportQuestion(payload) {
+  return request("/report/question", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 export function analyzeAttempts(sessionId, stepId) {
   return request(`/session/${sessionId}/analysis`, {
     method: "POST",

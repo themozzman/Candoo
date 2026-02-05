@@ -188,6 +188,12 @@ def _validate_step(step: dict, source: str) -> None:
             f"{source}: step {step['id']} attemptPolicy.allowSkip must be boolean"
         )
 
+    grading = step.get("grading")
+    if grading is not None and grading not in {"auto", "manual"}:
+        raise FlowValidationError(
+            f"{source}: step {step['id']} grading must be 'auto' or 'manual'"
+        )
+
     next_branch = step["next"]
     if not isinstance(next_branch, dict):
         raise FlowValidationError(

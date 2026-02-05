@@ -11,6 +11,14 @@ export default function Feedback({
     return null;
   }
 
+  if (result.recorded) {
+    return (
+      <div className="feedback feedback-neutral">
+        <div className="feedback-text">{result.feedback || "Response recorded."}</div>
+      </div>
+    );
+  }
+
   const solutionSteps = useMemo(() => {
     if (!result.reveal) {
       return [];

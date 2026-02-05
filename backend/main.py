@@ -37,6 +37,8 @@ from engine.analytics import (
     set_course_flow,
     set_user_courses,
     user_has_course,
+    log_question_report,
+    list_question_reports,
 )
 from engine.quiz_generators import AIFlowError, get_quiz_generator, now_label
 from engine.db import is_postgres
@@ -199,6 +201,18 @@ class AdminEmailStatusRequest(BaseModel):
 class AdminCreateUsersRequest(BaseModel):
     token: str
     users: list[dict]
+
+
+class ReportQuestionRequest(BaseModel):
+    session_id: str
+    flow_id: str
+    step_id: str
+    message: str | None = None
+
+
+class AdminQuestionReportsRequest(BaseModel):
+    token: str
+    limit: int | None = None
 
 
 class AdminUsersRequest(BaseModel):
@@ -517,6 +531,22 @@ def teacher_report(flow_id: str, user: dict = Depends(get_current_user)) -> dict
     return get_teacher_report(DB_PATH, flow_id, steps)
 
 
+@app.post("/report/question")
+def report_question(
+    payload: ReportQuestionRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    message = (payload.message or "").strip()
+    log_question_report(
+        DB_PATH,
+        session_id=payload.session_id,
+        flow_id=payload.flow_id,
+        step_id=payload.step_id,
+        student_id=user["username"],
+        message=message or None,
+    )
+    return {"success": True}
+
+
 @app.post("/auth/signup")
 def auth_signup(payload: SignupRequest, response: Response, request: Request) -> dict:
     raise HTTPException(status_code=403, detail="Signup is disabled")
@@ -790,6 +820,15 @@ def admin_create_users(
         except AuthError as exc:
             errors.append({"username": username, "email": email, "error": str(exc)})
     return {"created": created, "errors": errors}
+
+
+@app.post("/admin/reports/questions")
+def admin_question_reports(
+    payload: AdminQuestionReportsRequest, user: dict = Depends(get_current_user)
+) -> dict:
+    _require_admin_or_flow_token(payload.token, user)
+    limit = payload.limit or 100
+    return {"reports": list_question_reports(DB_PATH, limit=limit)}
 
 
 @app.post("/admin/users/list")
