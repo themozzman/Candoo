@@ -1711,8 +1711,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {!isMath10a && (
-                  <div className="admin-panel-card">
+                <div className="admin-panel-card">
                   <div className="admin-panel-header">
                     <div className="admin-panel-title">Published Quizzes</div>
                   </div>
@@ -1751,7 +1750,6 @@ export default function App() {
                     )}
                   </div>
                 </div>
-                )}
 
                 <div className="admin-panel-card">
                   <div className="admin-panel-header">
