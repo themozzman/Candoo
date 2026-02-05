@@ -103,7 +103,15 @@ export function fetchMe() {
   return request("/auth/me");
 }
 
-export function adminGenerateSpec(token, topic, courseId, folderId, difficulty, adminPrompt) {
+export function adminGenerateSpec(
+  token,
+  topic,
+  courseId,
+  folderId,
+  difficulty,
+  adminPrompt,
+  learningGoals
+) {
   return request("/admin/ai/spec", {
     method: "POST",
     body: JSON.stringify({
@@ -112,7 +120,8 @@ export function adminGenerateSpec(token, topic, courseId, folderId, difficulty, 
       course_id: courseId,
       folder_id: folderId,
       difficulty,
-      admin_prompt: adminPrompt
+      admin_prompt: adminPrompt,
+      learning_goals: learningGoals
     })
   });
 }

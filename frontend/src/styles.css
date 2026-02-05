@@ -334,6 +334,12 @@ body {
   background: #f8fafc;
 }
 
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .mathlive-input {
   width: 100%;
   min-height: 44px;

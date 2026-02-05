@@ -173,6 +173,7 @@ class AdminSpecRequest(BaseModel):
     folder_id: str | None = None
     difficulty: str | None = None
     admin_prompt: str | None = None
+    learning_goals: list[str] | None = None
 
 
 class AdminSpecApproveRequest(BaseModel):
@@ -648,6 +649,7 @@ def admin_ai_spec(payload: AdminSpecRequest) -> dict:
         "folder_name": folder_name,
         "difficulty": payload.difficulty,
         "admin_prompt": payload.admin_prompt,
+        "learning_goals": payload.learning_goals,
     }
     try:
         generator = get_quiz_generator(payload.course_id)
@@ -656,6 +658,8 @@ def admin_ai_spec(payload: AdminSpecRequest) -> dict:
             spec["difficulty"] = payload.difficulty
         if payload.admin_prompt:
             spec["admin_prompt"] = payload.admin_prompt
+        if payload.learning_goals:
+            spec["learning_goals"] = payload.learning_goals
     except AIFlowError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     spec_id = f"spec-{payload.course_id}-{now_label()}"

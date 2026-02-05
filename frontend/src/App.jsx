@@ -53,6 +53,7 @@ export default function App() {
   const [adminTopic, setAdminTopic] = useState("");
   const [adminFrenchDifficulty, setAdminFrenchDifficulty] = useState("medium");
   const [adminFrenchPrompt, setAdminFrenchPrompt] = useState("");
+  const [adminFrenchGoals, setAdminFrenchGoals] = useState(["", "", "", "", ""]);
   const [adminCourseId, setAdminCourseId] = useState("");
   const [adminSpec, setAdminSpec] = useState(null);
   const [adminSpecId, setAdminSpecId] = useState("");
@@ -740,7 +741,10 @@ export default function App() {
         courseId,
         adminUsesFolderQuizzes ? adminFolderId : null,
         is261Fren20b1 ? adminFrenchDifficulty : null,
-        is261Fren20b1 ? adminFrenchPrompt : null
+        is261Fren20b1 ? adminFrenchPrompt : null,
+        is261Fren20b1
+          ? adminFrenchGoals.map((goal) => goal.trim()).filter(Boolean)
+          : null
       );
       setAdminSpec(data.spec);
       setAdminSpecId(data.spec_id);
@@ -1732,13 +1736,34 @@ export default function App() {
                           )}
                           {is261Fren20b1 && (
                             <div className="form-field">
+                              <label className="form-label">Learning goals (1-5)</label>
+                              <div className="form-stack">
+                                {adminFrenchGoals.map((goal, index) => (
+                                  <input
+                                    key={`french-goal-${index}`}
+                                    className="form-input"
+                                    type="text"
+                                    value={goal}
+                                    onChange={(event) => {
+                                      const nextGoals = [...adminFrenchGoals];
+                                      nextGoals[index] = event.target.value;
+                                      setAdminFrenchGoals(nextGoals);
+                                    }}
+                                    placeholder={`Learning goal ${index + 1}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {is261Fren20b1 && (
+                            <div className="form-field">
                               <label className="form-label">Teacher instructions</label>
                               <textarea
                                 className="form-textarea"
-                                rows={4}
+                                rows={3}
                                 value={adminFrenchPrompt}
                                 onChange={(event) => setAdminFrenchPrompt(event.target.value)}
-                                placeholder="Describe learning goals the quiz should assess..."
+                                placeholder="Optional: add additional guidance (tone, topics, question mix)"
                               />
                             </div>
                           )}
