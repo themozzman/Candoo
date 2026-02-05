@@ -404,7 +404,12 @@ def session_start(payload: StartSessionRequest, user: dict = Depends(get_current
             raise HTTPException(status_code=403, detail="Flow is not assigned to a course")
         if not user_has_course(DB_PATH, user["id"], course_id):
             raise HTTPException(status_code=403, detail="Not enrolled in this course")
-    session_id, step = start_session(flow, user["username"], DB_PATH)
+    try:
+        session_id, step = start_session(flow, user["username"], DB_PATH)
+    except ValueError as exc:
+        detail = str(exc)
+        status = 409 if detail == "Quiz already completed" else 400
+        raise HTTPException(status_code=status, detail=detail) from exc
     return {
         "session_id": session_id,
         "flow": {
@@ -523,7 +528,7 @@ def auth_login(payload: LoginRequest, response: Response, request: Request) -> d
     user = get_user_by_username(DB_PATH, payload.username)
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not user.get("verified_at"):
+    if user.get("email") and not user.get("verified_at"):
         raise HTTPException(status_code=403, detail="Email not verified")
     session = create_session(DB_PATH, user["id"], SESSION_TTL_SECONDS)
     token = sign_session(session["session_id"], AUTH_SECRET)
@@ -773,7 +778,7 @@ def admin_create_users(
         username = (entry.get("username") or "").strip()
         email = (entry.get("email") or "").strip().lower()
         password = entry.get("password") or ""
-        if not username or not email or not password:
+        if not username or not password:
             errors.append({"username": username, "email": email, "error": "Missing fields"})
             continue
         try:

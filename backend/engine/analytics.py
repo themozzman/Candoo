@@ -209,12 +209,50 @@ def init_db(db_path: str) -> None:
         _ensure_users_email_column(conn)
         _ensure_course_tags_column(conn)
         _ensure_courses(conn)
+        _prune_courses(conn, {"calc-10b", "261math-10b-2", "261fren-20b-1"})
         _ensure_course_tag_values(conn)
         _ensure_course_quiz_folders(conn, "261math-10b-2")
         _ensure_default_quiz_folder(conn, "261math-10b-2")
         conn.commit()
     finally:
         conn.close()
+
+
+def _prune_courses(conn: "DBConnection", keep_ids: set[str]) -> None:
+    if not keep_ids:
+        return
+    placeholders = ",".join(["?"] * len(keep_ids))
+    keep_tuple = tuple(keep_ids)
+    conn.execute(
+        f"""
+        DELETE FROM user_courses
+        WHERE course_id NOT IN ({placeholders})
+        """,
+        keep_tuple,
+    )
+    conn.execute(
+        f"""
+        DELETE FROM quiz_folder_items
+        WHERE folder_id IN (
+            SELECT id FROM quiz_folders WHERE course_id NOT IN ({placeholders})
+        )
+        """,
+        keep_tuple,
+    )
+    conn.execute(
+        f"""
+        DELETE FROM quiz_folders
+        WHERE course_id NOT IN ({placeholders})
+        """,
+        keep_tuple,
+    )
+    conn.execute(
+        f"""
+        DELETE FROM courses
+        WHERE id NOT IN ({placeholders})
+        """,
+        keep_tuple,
+    )
 
 
 def _ensure_users_email_column(conn: "DBConnection") -> None:

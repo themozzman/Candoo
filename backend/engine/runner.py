@@ -21,6 +21,15 @@ PARSE_FEEDBACK = {
 }
 
 def start_session(flow: dict, student_id: str, db_path: str) -> tuple[str, dict]:
+    existing = _get_existing_session(db_path, flow["id"], student_id)
+    if existing:
+        if existing["current_step_id"] is None:
+            raise ValueError("Quiz already completed")
+        step = flow["steps"].get(existing["current_step_id"])
+        if step is None:
+            raise ValueError("Session step not found")
+        return existing["session_id"], _step_payload(step)
+
     session_id = str(uuid4())
     start_step_id = flow["startStepId"]
     conn = connect_db(db_path)
@@ -117,20 +126,21 @@ def submit_answer(
         time_spent_ms=time_spent_ms,
         next_step_id=next_step_id,
     )
-    reports_dir = Path(
-        os.environ.get(
-            "REPORTS_PATH",
-            str(Path(__file__).resolve().parents[1] / "reports"),
+    if _reports_enabled():
+        reports_dir = Path(
+            os.environ.get(
+                "REPORTS_PATH",
+                str(Path(__file__).resolve().parents[1] / "reports"),
+            )
         )
-    )
-    try:
-        write_report_snapshot(
-            db_path=db_path,
-            flow=flow,
-            reports_dir=reports_dir,
-        )
-    except Exception:
-        logger.exception("Failed to write report snapshot")
+        try:
+            write_report_snapshot(
+                db_path=db_path,
+                flow=flow,
+                reports_dir=reports_dir,
+            )
+        except Exception:
+            logger.exception("Failed to write report snapshot")
 
     if skipped:
         feedback = "Skipped."
@@ -174,6 +184,11 @@ def _step_payload(step: dict) -> dict:
         "solution": step.get("solution"),
     }
     return payload
+
+
+def _reports_enabled() -> bool:
+    value = os.environ.get("REPORT_SNAPSHOTS_ENABLED", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def advance_session(
@@ -279,6 +294,25 @@ def _get_session(db_path: str, session_id: str) -> dict | None:
             FROM sessions WHERE session_id = ?
             """,
             (session_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def _get_existing_session(db_path: str, flow_id: str, student_id: str) -> dict | None:
+    conn = connect_db(db_path)
+    set_row_factory(conn)
+    try:
+        row = conn.execute(
+            """
+            SELECT session_id, current_step_id
+            FROM sessions
+            WHERE flow_id = ? AND student_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (flow_id, student_id),
         ).fetchone()
         return dict(row) if row else None
     finally:

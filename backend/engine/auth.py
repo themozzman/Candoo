@@ -38,22 +38,21 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
 
 
-def create_user(db_path: str, username: str, password: str, email: str) -> dict:
+def create_user(db_path: str, username: str, password: str, email: str | None) -> dict:
     return _create_user(db_path, username, password, email, verified_at=None)
 
 
-def create_user_verified(db_path: str, username: str, password: str, email: str) -> dict:
+def create_user_verified(db_path: str, username: str, password: str, email: str | None) -> dict:
     return _create_user(db_path, username, password, email, verified_at=_now_iso())
 
 
 def _create_user(
-    db_path: str, username: str, password: str, email: str, verified_at: str | None
+    db_path: str, username: str, password: str, email: str | None, verified_at: str | None
 ) -> dict:
     if not username:
         raise AuthError("Username cannot be empty")
-    if not email:
-        raise AuthError("Email cannot be empty")
-    if "@" not in email:
+    email_value = (email or "").strip().lower()
+    if email_value and "@" not in email_value:
         raise AuthError("Email must be valid")
     password_hash = hash_password(password)
     now = _now_iso()
@@ -65,7 +64,7 @@ def _create_user(
                 INSERT INTO users (username, email, password_hash, created_at, verified_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
-                (username, email, password_hash, now, verified_at),
+                (username, email_value or None, password_hash, now, verified_at),
             )
         except (sqlite3.OperationalError, PgOperationalError) as exc:
             if "no such column: email" in str(exc):
@@ -75,7 +74,7 @@ def _create_user(
                     INSERT INTO users (username, email, password_hash, created_at, verified_at)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (username, email, password_hash, now, verified_at),
+                    (username, email_value or None, password_hash, now, verified_at),
                 )
             else:
                 raise
