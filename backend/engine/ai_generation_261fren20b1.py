@@ -63,6 +63,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     learning_goals = spec.get("learning_goals") or []
     if not isinstance(learning_goals, list):
         learning_goals = []
+    if not learning_goals:
+        raise AIFlowError("French generator requires at least one learning goal.")
     prompt = (
         "You are generating a learning flow JSON for a French quiz.\n"
         "Return ONLY valid JSON that follows this schema:\n"
@@ -91,10 +93,10 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "  }\n"
         "}\n\n"
         "Rules:\n"
-        "- Use 6-10 steps total.\n"
-        "- Mix MC and SA questions.\n"
-        "- Create exactly 3 questions per learning goal.\n"
-        "- Each learning goal must be covered.\n"
+        "- Use exactly 3 questions per learning goal.\n"
+        "- Each learning goal must be covered with three distinct question types.\n"
+        "- Mix MC and SA questions (at least one MC and one SA per goal).\n"
+        "- Avoid repeating the same stem structure across goals.\n"
         "- Use prompt_text for the instruction and content; prompt_math must be empty.\n"
         "- MC options must be full English/French phrases, not single letters.\n"
         "- For SA, accept 2-4 equivalent answers (case/whitespace variations).\n"
@@ -113,8 +115,20 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
     flow["id"] = flow_id
     _repair_null_next(flow)
     _ensure_terminal_step(flow)
+    _validate_learning_goal_counts(flow, learning_goals)
     base._shuffle_mc_options(flow)
     return flow
+
+
+def _validate_learning_goal_counts(flow: dict, learning_goals: list[str]) -> None:
+    steps = flow.get("steps")
+    if not isinstance(steps, dict) or not steps:
+        raise AIFlowError("French flow steps must be an object")
+    expected = len(learning_goals) * 3
+    if len(steps) != expected:
+        raise AIFlowError(
+            f"French flow must include {expected} steps (3 per learning goal)."
+        )
 
 
 def _repair_null_next(flow: dict) -> None:
