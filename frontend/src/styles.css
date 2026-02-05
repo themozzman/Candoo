@@ -32,6 +32,20 @@ body {
   align-items: center;
   justify-content: center;
   padding: 24px;
+  position: relative;
+  background: url("./assets/login-campus.png") center / cover no-repeat;
+}
+
+.auth-main::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.auth-main > * {
+  position: relative;
+  z-index: 1;
 }
 
 .auth-main .auth-card {

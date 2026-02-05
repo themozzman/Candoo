@@ -350,8 +350,11 @@ export default function App() {
 
   const is261Math10b2 = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
   const is261Fren20b1 = (selectedCourse?.id || selectedCourseId) === "261fren-20b-1";
-  const adminUsesFolderQuizzes = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
-  const usesFolderQuizzes = selectedCourseId === "261math-10b-2";
+  const folderEnabledCourses = new Set(["261math-10b-2", "261fren-20b-1"]);
+  const adminUsesFolderQuizzes = folderEnabledCourses.has(
+    adminCourse?.id || selectedCourseId
+  );
+  const usesFolderQuizzes = folderEnabledCourses.has(selectedCourseId);
 
   const courseFlows = useMemo(() => {
     if (!selectedCourseId) {
@@ -1997,8 +2000,6 @@ export default function App() {
                                 <div>
                                   <div className="quiz-title">{flow.title}</div>
                                   <div className="quiz-meta">
-                                    <span>⏱ {meta.duration} min</span>
-                                    <span>•</span>
                                     <span>{meta.questions} questions</span>
                                     <span>•</span>
                                     <span className={meta.score ? "" : "quiz-due"}>
