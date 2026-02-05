@@ -1,3 +1,5 @@
+import random
+
 from . import ai_generation_calc10b as base
 
 
@@ -75,109 +77,33 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
             f"Folder {folder_name} is not supported for {COURSE_LABEL}."
         )
 
-    steps = [
-        _mc_step(
-            "step1",
-            r"(x^3 + 2x)\sin x",
-            r"(3x^2+2)\sin x + (x^3+2x)\cos x",
-            [
-                r"(3x^2+2)\sin x",
-                r"(x^3+2x)\cos x",
-                r"(3x^2+2)\cos x + (x^3+2x)\sin x",
-            ],
-            skill="Product rule",
-        ),
-        _sa_step(
-            "step2",
-            r"(2x^2 - 5)^4",
-            [
-                r"16x(2x^2-5)^3",
-                r"4(2x^2-5)^3\cdot 4x",
-            ],
-            skill="Chain rule",
-        ),
-        _mc_step(
-            "step3",
-            r"\frac{x^2+1}{x-3}",
-            r"\frac{2x(x-3)-(x^2+1)}{(x-3)^2}",
-            [
-                r"\frac{2x(x-3)+(x^2+1)}{(x-3)^2}",
-                r"\frac{2x(x-3)-(x^2+1)}{x-3}",
-                r"\frac{2x}{x-3}",
-            ],
-            skill="Quotient rule",
-        ),
-        _sa_step(
-            "step4",
-            r"e^{2x}\cos x",
-            [
-                r"2e^{2x}\cos x - e^{2x}\sin x",
-                r"e^{2x}(2\cos x - \sin x)",
-            ],
-            skill="Product rule",
-        ),
-        _mc_step(
-            "step5",
-            r"(x^2+3x)^5",
-            r"5(x^2+3x)^4(2x+3)",
-            [
-                r"(2x+3)",
-                r"5(x^2+3x)^4",
-                r"5(x^2+3x)^5(2x+3)",
-            ],
-            skill="Chain rule",
-        ),
-        _sa_step(
-            "step6",
-            r"\frac{\ln x}{x^2+1}",
-            [
-                r"\frac{(x^2+1)\cdot \frac{1}{x} - 2x\ln x}{(x^2+1)^2}",
-                r"\frac{\frac{x^2+1}{x} - 2x\ln x}{(x^2+1)^2}",
-            ],
-            skill="Quotient rule",
-        ),
-        _mc_step(
-            "step7",
-            r"3^x",
-            r"(\ln 3)3^x",
-            [
-                r"3^x\ln x",
-                r"3^{x-1}",
-                r"\frac{3^x}{x}",
-            ],
-            skill="Exponential derivatives",
-        ),
-        _sa_step(
-            "step8",
-            r"\sin(3x^2-1)",
-            [
-                r"6x\cos(3x^2-1)",
-                r"\cos(3x^2-1)\cdot 6x",
-            ],
-            skill="Chain rule",
-        ),
-        _sa_step(
-            "step9",
-            r"e^{\sqrt{x}}",
-            [
-                r"\frac{e^{\sqrt{x}}}{2\sqrt{x}}",
-                r"e^{\sqrt{x}}\cdot \frac{1}{2\sqrt{x}}",
-            ],
-            skill="Chain rule",
-        ),
-        _sa_step(
-            "step10",
-            r"\sqrt{5x^3+4x}",
-            [
-                r"\frac{15x^2+4}{2\sqrt{5x^3+4x}}",
-                r"\frac{1}{2}(5x^3+4x)^{-1/2}(15x^2+4)",
-            ],
-            skill="Chain rule",
-        ),
+    mc_generators = [
+        _mc_product_rule,
+        _mc_product_rule,
+        _mc_quotient_rule,
+        _mc_chain_rule,
     ]
+    sa_generators = [
+        _sa_chain_rule,
+        _sa_product_rule,
+        _sa_quotient_rule,
+        _sa_chain_rule,
+        _sa_chain_rule,
+        _sa_chain_rule,
+    ]
+    random.shuffle(mc_generators)
+    random.shuffle(sa_generators)
+
+    steps = []
+    for idx, generator in enumerate(mc_generators + sa_generators, start=1):
+        steps.append(generator(f"step{idx}"))
+
+    random.shuffle(steps)
+    for idx, step in enumerate(steps, start=1):
+        step["id"] = f"step{idx}"
+    _link_steps(steps)
 
     steps_by_id = {step["id"]: step for step in steps}
-    _link_steps(steps)
     return {
         "schemaVersion": 1,
         "id": flow_id,
@@ -246,3 +172,87 @@ def _link_steps(steps: list[dict]) -> None:
     for idx, step in enumerate(steps):
         next_id = steps[idx + 1]["id"] if idx + 1 < len(steps) else None
         step["next"] = {"correct": next_id, "wrong": next_id, "skip": next_id}
+
+
+def _rand_int(low: int, high: int, exclude: set[int] | None = None) -> int:
+    exclude = exclude or set()
+    value = random.randint(low, high)
+    while value in exclude:
+        value = random.randint(low, high)
+    return value
+
+
+def _mc_product_rule(step_id: str) -> dict:
+    a = _rand_int(2, 5)
+    n = _rand_int(2, 4)
+    b = _rand_int(1, 5)
+    prompt = rf"({a}x^{n}+{b}x)\sin x"
+    correct = rf"({a*n}x^{n-1}+{b})\sin x + ({a}x^{n}+{b}x)\cos x"
+    distractors = [
+        rf"({a*n}x^{n-1}+{b})\sin x",
+        rf"({a}x^{n}+{b}x)\cos x",
+        rf"({a*n}x^{n-1}+{b})\cos x + ({a}x^{n}+{b}x)\sin x",
+    ]
+    return _mc_step(step_id, prompt, correct, distractors, "Product rule")
+
+
+def _mc_quotient_rule(step_id: str) -> dict:
+    a = _rand_int(2, 4)
+    b = _rand_int(1, 5)
+    c = _rand_int(2, 5)
+    d = _rand_int(1, 4)
+    prompt = rf"\frac{{{a}x^{2}+{b}}}{{x-{c}}}"
+    correct = rf"\frac{{2{a}x(x-{c})-({a}x^{2}+{b})}}{{(x-{c})^{2}}}"
+    distractors = [
+        rf"\frac{{2{a}x(x-{c})+({a}x^{2}+{b})}}{{(x-{c})^{2}}}",
+        rf"\frac{{2{a}x(x-{c})-({a}x^{2}+{b})}}{{x-{c}}}",
+        rf"\frac{{2{a}x}}{{x-{c}}}",
+    ]
+    return _mc_step(step_id, prompt, correct, distractors, "Quotient rule")
+
+
+def _mc_chain_rule(step_id: str) -> dict:
+    a = _rand_int(2, 4)
+    b = _rand_int(1, 5)
+    p = _rand_int(3, 6)
+    prompt = rf"(x^{2}+{a}x+{b})^{p}"
+    correct = rf"{p}(x^{2}+{a}x+{b})^{p-1}(2x+{a})"
+    distractors = [
+        rf"(2x+{a})",
+        rf"{p}(x^{2}+{a}x+{b})^{p-1}",
+        rf"{p}(x^{2}+{a}x+{b})^{p}(2x+{a})",
+    ]
+    return _mc_step(step_id, prompt, correct, distractors, "Chain rule")
+
+
+def _sa_chain_rule(step_id: str) -> dict:
+    a = _rand_int(2, 5)
+    b = _rand_int(1, 6)
+    p = random.choice([3, 4, 5])
+    prompt = rf"({a}x^{2}-{b})^{p}"
+    answers = [
+        rf"{p}({a}x^{2}-{b})^{p-1}\cdot {2*a}x",
+        rf"{p}({a}x^{2}-{b})^{p-1}{2*a}x",
+    ]
+    return _sa_step(step_id, prompt, answers, "Chain rule")
+
+
+def _sa_product_rule(step_id: str) -> dict:
+    k = _rand_int(2, 4)
+    prompt = rf"e^{{{k}x}}\cos x"
+    answers = [
+        rf"{k}e^{{{k}x}}\cos x - e^{{{k}x}}\sin x",
+        rf"e^{{{k}x}}({k}\cos x - \sin x)",
+    ]
+    return _sa_step(step_id, prompt, answers, "Product rule")
+
+
+def _sa_quotient_rule(step_id: str) -> dict:
+    a = _rand_int(1, 4)
+    b = _rand_int(1, 5)
+    prompt = rf"\frac{{\ln x}}{{x^{a}+{b}}}"
+    answers = [
+        rf"\frac{{(x^{a}+{b})\cdot \frac{{1}}{{x}} - {a}x^{a-1}\ln x}}{{(x^{a}+{b})^{2}}}",
+        rf"\frac{{\frac{{x^{a}+{b}}}{{x}} - {a}x^{a-1}\ln x}}{{(x^{a}+{b})^{2}}}",
+    ]
+    return _sa_step(step_id, prompt, answers, "Quotient rule")
