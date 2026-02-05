@@ -65,6 +65,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         learning_goals = []
     if not learning_goals:
         raise AIFlowError("French generator requires at least one learning goal.")
+    expected_steps = len(learning_goals) * 3
     prompt = (
         "You are generating a learning flow JSON for a French quiz.\n"
         "Return ONLY valid JSON that follows this schema:\n"
@@ -97,6 +98,7 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- Each learning goal must be covered with three distinct question types.\n"
         "- Mix MC and SA questions (at least one MC and one SA per goal).\n"
         "- Avoid repeating the same stem structure across goals.\n"
+        f"- Output exactly {expected_steps} steps total.\n"
         "- Use prompt_text for the instruction and content; prompt_math must be empty.\n"
         "- MC options must be full English/French phrases, not single letters.\n"
         "- For SA, accept 2-4 equivalent answers (case/whitespace variations).\n"
@@ -108,16 +110,29 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         f"flow_id: {flow_id}\n"
         f"Spec JSON:\n{json.dumps(spec, indent=2)}"
     )
-    flow = base._json_response(client, prompt)
-    if not isinstance(flow, dict):
-        raise AIFlowError("Flow response must be a JSON object")
-    flow["schemaVersion"] = 1
-    flow["id"] = flow_id
-    _repair_null_next(flow)
-    _ensure_terminal_step(flow)
-    _validate_learning_goal_counts(flow, learning_goals)
-    base._shuffle_mc_options(flow)
-    return flow
+    for attempt in range(3):
+        flow = base._json_response(client, prompt)
+        if not isinstance(flow, dict):
+            raise AIFlowError("Flow response must be a JSON object")
+        flow["schemaVersion"] = 1
+        flow["id"] = flow_id
+        _repair_null_next(flow)
+        _ensure_terminal_step(flow)
+        try:
+            _validate_learning_goal_counts(flow, learning_goals)
+        except AIFlowError:
+            if attempt < 2:
+                prompt = (
+                    prompt
+                    + "\n\n"
+                    + f"Validation failed: expected exactly {expected_steps} steps. "
+                    "Return the full flow again with the correct count."
+                )
+                continue
+            raise
+        base._shuffle_mc_options(flow)
+        return flow
+    raise AIFlowError("French flow generation failed.")
 
 
 def _validate_learning_goal_counts(flow: dict, learning_goals: list[str]) -> None:
