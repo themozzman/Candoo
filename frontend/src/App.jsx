@@ -355,6 +355,7 @@ export default function App() {
 
   const is261Math10b2 = (adminCourse?.id || selectedCourseId) === "261math-10b-2";
   const is261Fren20b1 = (selectedCourse?.id || selectedCourseId) === "261fren-20b-1";
+  const isMath10a = (adminCourse?.id || selectedCourseId) === "math-10a";
   const folderEnabledCourses = new Set([
     "261math-10b-2",
     "261fren-20b-1",
@@ -1605,7 +1606,7 @@ export default function App() {
 
             {adminTab === "quizzes" && (
               <div className="admin-panel-stack">
-                {adminUsesFolderQuizzes && (
+                {adminUsesFolderQuizzes && !isMath10a && (
                   <div className="admin-panel-card">
                     <div className="admin-panel-header">
                       <div className="admin-panel-title">Quiz Folders</div>
@@ -1710,7 +1711,8 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <div className="admin-panel-card">
+                {!isMath10a && (
+                  <div className="admin-panel-card">
                   <div className="admin-panel-header">
                     <div className="admin-panel-title">Published Quizzes</div>
                   </div>
@@ -1749,6 +1751,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
+                )}
 
                 <div className="admin-panel-card">
                   <div className="admin-panel-header">
@@ -1794,7 +1797,7 @@ export default function App() {
                               </select>
                             </div>
                           )}
-                          {!is261Math10b2 && (
+                          {!is261Math10b2 && !isMath10a && (
                             <div className="form-field">
                               <label className="form-label">Topic</label>
                               <input
