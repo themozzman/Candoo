@@ -634,16 +634,28 @@ export default function App() {
       .catch((err) => setError(err.message));
   };
 
+  const resetCourseState = () => {
+    setCourses([]);
+    setSelectedCourseId("");
+    setSelectedFlowId("");
+    setCourseFolders([]);
+    setCourseFolderStatus("");
+    setCatalogNotice("");
+  };
+
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
     setError("");
     setAuthMessage("");
     try {
       const data = await login(authUsername, authPassword);
+      resetCourseState();
       setAuthUser(data);
       setStudentId(data.username);
       setViewMode("catalog");
       setAuthPassword("");
+      loadCourses(false);
+      loadFlows();
     } catch (err) {
       setError(err.message);
     }
@@ -661,6 +673,7 @@ export default function App() {
       setViewMode("catalog");
       setAdminTokenReady(false);
       setReturnView("catalog");
+      resetCourseState();
       resetSessionView();
     }
   };
