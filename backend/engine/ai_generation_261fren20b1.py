@@ -129,10 +129,29 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
                     "Return the full flow again with the correct count."
                 )
                 continue
-            raise
+            flow = _fix_flow_step_count(client, flow, expected_steps)
+            _repair_null_next(flow)
+            _ensure_terminal_step(flow)
+            _validate_learning_goal_counts(flow, learning_goals)
         base._shuffle_mc_options(flow)
         return flow
     raise AIFlowError("French flow generation failed.")
+
+
+def _fix_flow_step_count(client: "OpenAI", flow: dict, expected_steps: int) -> dict:
+    prompt = (
+        "You are fixing a French quiz flow JSON.\n"
+        f"Adjust it to have exactly {expected_steps} steps.\n"
+        "You may add or remove steps, but keep the structure and format the same.\n"
+        "Return ONLY valid JSON for the full flow.\n\n"
+        f"Flow JSON:\n{json.dumps(flow, indent=2)}"
+    )
+    fixed = base._json_response(client, prompt)
+    if not isinstance(fixed, dict):
+        raise AIFlowError("Fixed flow response must be a JSON object")
+    fixed["schemaVersion"] = 1
+    fixed["id"] = flow.get("id") or fixed.get("id")
+    return fixed
 
 
 def _validate_learning_goal_counts(flow: dict, learning_goals: list[str]) -> None:
