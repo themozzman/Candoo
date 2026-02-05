@@ -10,6 +10,7 @@ COURSE_GENERATORS = {
     "261math-10b-2": "engine.ai_generation_261math10b2",
     "261fren-20b-1": "engine.ai_generation_261fren20b1",
     "calc-10b": "engine.ai_generation_calc10b",
+    "math-10a": "engine.ai_generation_math10a",
     "french-10a": "engine.ai_generation_french10a",
     "french-20b": "engine.ai_generation_french20b",
     "spanish-2": "engine.ai_generation_spanish2",

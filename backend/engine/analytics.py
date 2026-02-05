@@ -228,10 +228,12 @@ def init_db(db_path: str) -> None:
         _ensure_users_email_column(conn)
         _ensure_course_tags_column(conn)
         _ensure_courses(conn)
-        _prune_courses(conn, {"calc-10b", "261math-10b-2", "261fren-20b-1"})
+        _prune_courses(conn, {"calc-10b", "261math-10b-2", "261fren-20b-1", "math-10a"})
         _ensure_course_tag_values(conn)
         _ensure_course_quiz_folders(conn, "261math-10b-2")
         _ensure_default_quiz_folder(conn, "261math-10b-2")
+        _ensure_course_quiz_folders(conn, "math-10a")
+        _ensure_default_quiz_folder(conn, "math-10a")
         conn.commit()
     finally:
         conn.close()
@@ -346,6 +348,15 @@ def _ensure_courses(conn: "DBConnection") -> None:
             now,
         ),
         (
+            "math-10a",
+            "MATH 10A",
+            "Techniques of Calculus (a)",
+            "Techniques of Calculus (a).",
+            math_tags,
+            None,
+            now,
+        ),
+        (
             "spanish-2",
             "Spanish 2",
             "Spanish",
@@ -440,10 +451,13 @@ def _ensure_default_quiz_folder(conn: "DBConnection", course_id: str) -> str:
 
 
 def _ensure_course_quiz_folders(conn: "DBConnection", course_id: str) -> None:
-    if course_id != "261math-10b-2":
+    if course_id not in {"261math-10b-2", "math-10a"}:
         return
     set_row_factory(conn)
-    required = ["F7", "G6", "G7", "G8", "G9"]
+    if course_id == "math-10a":
+        required = ["F7", "G8", "G9", "G10", "G11", "G12"]
+    else:
+        required = ["F7", "G6", "G7", "G8", "G9"]
     existing = {
         row["name"]
         for row in conn.execute(
