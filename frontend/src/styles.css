@@ -55,6 +55,12 @@ body {
 .auth-main .app-footer {
   margin-top: auto;
   width: 100%;
+  margin-bottom: 0;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  font-size: 11px;
+  border-top: 1px solid rgba(226, 232, 240, 0.35);
 }
 
 .auth-card {
