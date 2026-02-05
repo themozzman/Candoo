@@ -51,6 +51,8 @@ export default function App() {
   const [adminTab, setAdminTab] = useState("students");
   const [rosterEditMode, setRosterEditMode] = useState(false);
   const [adminTopic, setAdminTopic] = useState("");
+  const [adminFrenchDifficulty, setAdminFrenchDifficulty] = useState("medium");
+  const [adminFrenchPrompt, setAdminFrenchPrompt] = useState("");
   const [adminCourseId, setAdminCourseId] = useState("");
   const [adminSpec, setAdminSpec] = useState(null);
   const [adminSpecId, setAdminSpecId] = useState("");
@@ -736,7 +738,9 @@ export default function App() {
         adminToken,
         is261Math10b2 ? "" : adminTopic,
         courseId,
-        adminUsesFolderQuizzes ? adminFolderId : null
+        adminUsesFolderQuizzes ? adminFolderId : null,
+        is261Fren20b1 ? adminFrenchDifficulty : null,
+        is261Fren20b1 ? adminFrenchPrompt : null
       );
       setAdminSpec(data.spec);
       setAdminSpecId(data.spec_id);
@@ -1709,6 +1713,32 @@ export default function App() {
                                 onChange={(event) => setAdminTopic(event.target.value)}
                                 placeholder="e.g. Trigonometric derivatives"
                                 required
+                              />
+                            </div>
+                          )}
+                          {is261Fren20b1 && (
+                            <div className="form-field">
+                              <label className="form-label">Difficulty</label>
+                              <select
+                                className="form-select"
+                                value={adminFrenchDifficulty}
+                                onChange={(event) => setAdminFrenchDifficulty(event.target.value)}
+                              >
+                                <option value="easy">Easy</option>
+                                <option value="medium">Medium</option>
+                                <option value="hard">Hard</option>
+                              </select>
+                            </div>
+                          )}
+                          {is261Fren20b1 && (
+                            <div className="form-field">
+                              <label className="form-label">Extra instructions</label>
+                              <textarea
+                                className="form-textarea"
+                                rows={4}
+                                value={adminFrenchPrompt}
+                                onChange={(event) => setAdminFrenchPrompt(event.target.value)}
+                                placeholder="Add additional guidance for the French quiz..."
                               />
                             </div>
                           )}

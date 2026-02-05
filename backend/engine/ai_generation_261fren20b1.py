@@ -15,6 +15,8 @@ COURSE_LABEL = "261FREN-20B-1"
 def generate_spec(topic: str, course: dict) -> dict:
     client = base._client()
     course_tags = base._normalize_tags(course.get("tags"))
+    difficulty = course.get("difficulty") or "medium"
+    admin_prompt = (course.get("admin_prompt") or "").strip()
     prompt = (
         "You are a curriculum designer for a French course.\n"
         "Create a JSON teaching spec for the topic.\n"
@@ -31,6 +33,8 @@ def generate_spec(topic: str, course: dict) -> dict:
         f"Topic: {topic}\n"
         f"Course: {course.get('id')} - {course.get('name')} ({course.get('subtitle')})\n"
         f"Course tags: {', '.join(course_tags) if course_tags else 'none'}\n"
+        f"Difficulty: {difficulty}\n"
+        f"{'Admin instructions: ' + admin_prompt if admin_prompt else ''}\n"
         "Question types allowed: MC, SA.\n"
         "All questions are language-focused (no math content)."
     )
@@ -40,11 +44,16 @@ def generate_spec(topic: str, course: dict) -> dict:
     spec["topic"] = topic
     spec["course_id"] = course.get("id")
     spec["course_tags"] = course_tags
+    spec["difficulty"] = difficulty
+    if admin_prompt:
+        spec["admin_prompt"] = admin_prompt
     return spec
 
 
 def generate_flow(spec: dict, flow_id: str) -> dict:
     client = base._client()
+    difficulty = spec.get("difficulty") or "medium"
+    admin_prompt = (spec.get("admin_prompt") or "").strip()
     prompt = (
         "You are generating a learning flow JSON for a French quiz.\n"
         "Return ONLY valid JSON that follows this schema:\n"
@@ -80,6 +89,8 @@ def generate_flow(spec: dict, flow_id: str) -> dict:
         "- For SA, accept 2-4 equivalent answers (case/whitespace variations).\n"
         "- The final step must terminate the flow by setting next.correct/next.wrong/next.skip to null.\n"
         "- All content must be language-focused (no math, formulas, or symbols).\n\n"
+        f"Difficulty: {difficulty}\n"
+        f"{'Admin instructions: ' + admin_prompt if admin_prompt else ''}\n"
         f"flow_id: {flow_id}\n"
         f"Spec JSON:\n{json.dumps(spec, indent=2)}"
     )
