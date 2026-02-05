@@ -1732,13 +1732,13 @@ export default function App() {
                           )}
                           {is261Fren20b1 && (
                             <div className="form-field">
-                              <label className="form-label">Extra instructions</label>
+                              <label className="form-label">Teacher instructions</label>
                               <textarea
                                 className="form-textarea"
                                 rows={4}
                                 value={adminFrenchPrompt}
                                 onChange={(event) => setAdminFrenchPrompt(event.target.value)}
-                                placeholder="Add additional guidance for the French quiz..."
+                                placeholder="Describe learning goals the quiz should assess..."
                               />
                             </div>
                           )}
